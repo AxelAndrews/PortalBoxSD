@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # Database service
+  db:
+    build:
+      context: ./PortalBox-database
+    container_name: portalbox-db
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: DB_NAME
+      MYSQL_USER: DB_USER
+      MYSQL_PASSWORD: DB_PASSWORD
+    volumes:
+      - portalbox-db-data:/var/lib/mysql
+    networks:
+      - portalbox-network
+
+  # App service
+  app:
+    build:
+      context: ./PortalBox-ManagementPortal
+    container_name: portalbox-app
+    ports:
+      - "8080:8080"  # Adjust based on app requirements
+    networks:
+      - portalbox-network
+    depends_on:
+      - db  # Ensure the app container starts after the db
+
+  # Firmware development service (separate container for flashing)
+  firmware:
+    image: espressif/idf:latest
+    container_name: esp32_firmware
+    volumes:
+      - ./PortalBox-application:/workspace  # Your firmware directory
+      - /dev:/dev  # Allow access to USB devices for flashing
+    entrypoint: /bin/bash
+    networks:
+      - portalbox-network
+
+networks:
+  portalbox-network:
+    driver: bridge
+
+volumes:
+  portalbox-db-data: {}
