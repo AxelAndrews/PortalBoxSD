@@ -1,0 +1,49 @@
+{{#user}}
+<ul class="crumbs">
+	<li><a href="/">Home</a></li>
+	<li>Profile</li>
+</ul>
+<article>
+	<header>
+		<h1>Profile</h1>
+	</header>
+	<dl>
+		<dt>Name:</label>
+		<dd>{{name}}</dd>
+		<dt>Email:</dt>
+		<dd><a href="mailto:{{email}}">{{email}}</a></dd>
+		<dt>Authorized for:</dt>
+		<dd>
+			{{#equipment_type}}
+			<ul>
+				<li>{{name}}</li>
+			</ul>
+			{{/equipment_type}}
+			{{^equipment_type}}Not yet Authorized for any Equipment{{/equipment_type}}
+		</dd>
+		<dt>Charge/Payment History:</dt>
+		<dd>
+			<div class="button-group">
+				<button type="button" id="transaction-button">Hide Transactions</button>
+			</div>
+			<table id="transaction-table">
+				<thead class="collapsible-content">
+					<tr><th>Date</th><th>Equipment</th><th>Amount</th><th>Balance</th></tr>
+				</thead>
+				<tbody class="collapsible-content">
+					{{#ledger}}<tr{{#equipment_id}} class="debit"{{/equipment_id}}>
+						<td>{{time}}</td>
+						<td>{{^equipment_id}}- Credit -{{/equipment_id}}{{#equipment}}{{.}}{{/equipment}}{{#charge_policy}} ({{.}}){{/charge_policy}}</td>
+						<td>{{amount}}</td>
+						<td>{{balance}}</td>
+					</tr>{{/ledger}}
+					{{^ledger}}<tr><td colspan="3">No account activity to date</td></tr>{{/ledger}}
+				</tbody>
+				<tfoot>
+					<tr><td colspan="2" style="text-align:right">Balance:</td><td>{{total_balance}}</td></tr>
+				</tfoot>
+			</table>
+		</dd>
+	</dl>
+</article>
+{{/user}}

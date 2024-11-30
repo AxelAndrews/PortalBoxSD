@@ -4,7 +4,7 @@ services:
   # Database service
   db:
     build:
-      context: ./PortalBox-database
+      context: ./database
     container_name: portalbox-db
     environment:
       MYSQL_ROOT_PASSWORD: root_password
@@ -19,7 +19,7 @@ services:
   # App service
   app:
     build:
-      context: ./PortalBox-ManagementPortal
+      context: ./portal
     container_name: portalbox-app
     ports:
       - "8080:8080"  # Adjust based on app requirements
@@ -33,7 +33,7 @@ services:
     image: espressif/idf:latest
     container_name: esp32_firmware
     volumes:
-      - ./PortalBox-application:/workspace  # Your firmware directory
+      - ./box_firmware:/workspace  # Your firmware directory
       - /dev:/dev  # Allow access to USB devices for flashing
     entrypoint: /bin/bash
     networks:
