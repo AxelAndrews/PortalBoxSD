@@ -1,0 +1,11 @@
+FROM mysql:8.0
+
+# Set environment variables for the database
+ENV MYSQL_ROOT_PASSWORD=root_password
+ENV MYSQL_DATABASE=DB_NAME
+ENV MYSQL_USER=DB_USER
+ENV MYSQL_PASSWORD=DB_PASSWORD
+
+# Copy the schema and migration files into the container
+COPY schema/schema.sql /docker-entrypoint-initdb.d/schema-schema.sql
+COPY migration/*.sql /docker-entrypoint-initdb.d/migrations/
