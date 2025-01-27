@@ -8,7 +8,7 @@ np=neopixel.NeoPixel(led,1) # mpremote run test.py
 button_pin = machine.Pin(1, machine.Pin.IN, machine.Pin.PULL_UP)
 
 while True:
-     # print("hi")
+    # print("hi")
     button_state = button_pin.value()
 
     if button_state == 0: 
