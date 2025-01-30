@@ -46,7 +46,7 @@ class Emailer:
             'Authorization': f"Bearer {self.settings['api_key']}"  # Assuming API key authentication
         }
 
-        email_service_url = self.settings.get('email_service_url', 'https://api.mailgun.net/v3/your_domain.com/messages')  # Example URL for Mailgun
+        email_service_url = self.settings.get('email_service_url', 'https://api.mailgun.net/v3/your_domain.com/messages') 
         
         try:
             response = urequests.post(email_service_url, headers=headers, json=email_data)
