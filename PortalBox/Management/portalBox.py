@@ -1,71 +1,139 @@
-import wifi
+import os
+import time
+import uthread
+from machine import Pin
 from time import sleep
-import machine
+from .display.AbstractController import BLACK
+from .BuzzerController import BuzzerController
+import logging
 
-try:
-  import usocket as socket
-except:
-  import socket
+# Constants defining how peripherals are connected
+GPIO_INTERLOCK_PIN = 11
+GPIO_BUTTON_LED_PIN = 31
+GPIO_BUZZER_PIN = 33
+GPIO_BUTTON_PIN = 35
+GPIO_SOLID_STATE_RELAY_PIN = 37
+GPIO_RFID_NRST_PIN = 13
+GPIO_RESET_BTN_PIN = 3
 
-led = machine.Pin(8, machine.Pin.OUT)
+# Constants (MicroPython does not support the standard RPi constants)
+BLACK = "00 00 00"
 
-wlan = wifi.get_connection()
-if wlan is None:
-    print("Could not initialize the network connection.")
-    while True:
-        pass  # you shall not pass :D
+# # Utility functions
+# def get_revision():
+#     try:
+#         with open("/proc/cpuinfo", "r") as file:
+#             for line in file:
+#                 if "Revision" in line:
+#                     return line.split(":")[1].strip()
+#     except:
+#         return -1
 
-# Main Code goes here, wlan is a working network.WLAN(STA_IF) instance.
-print("ESP OK")
+# class PortalBox:
+#     '''
+#     Wrapper to manage peripherals
+#     '''
+#     # def __init__(self, settings):
+#     def __init__(self):
+#         self.is_pi_zero_w = "9000c1" == get_revision()
 
-def web_page():
-  if led.value() == 1:
-    gpio_state="ON"
-  else:
-    gpio_state="OFF"
-  
-  html = """<html><head> <title>ESP Web Server</title> <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" href="data:,"> <style>html{font-family: Helvetica; display:inline-block; margin: 0px auto; text-align: center;}
-  h1{color: #0F3376; padding: 2vh;}p{font-size: 1.5rem;}.button{display: inline-block; background-color: #e7bd3b; border: none; 
-  border-radius: 4px; color: white; padding: 16px 40px; text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}
-  .button2{background-color: #4286f4;}</style></head><body> <h1>ESP Web Server</h1> 
-  <p>GPIO state: <strong>""" + gpio_state + """</strong></p><p><a href="/?led=on"><button class="button">ON</button></a></p>
-  <p><a href="/?led=off"><button class="button button2">OFF</button></a></p></body></html>"""
-  return html
-  
-try:
-  s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-  s.bind(('', 80))
-  s.listen(5)
-except OSError as e:
-  machine.reset()
+#         # Set up GPIO pins
+#         self.interlock_pin = Pin(GPIO_INTERLOCK_PIN, Pin.OUT)
+#         self.ssr_pin = Pin(GPIO_SOLID_STATE_RELAY_PIN, Pin.OUT)
 
-while True:
-  try:
-    if gc.mem_free() < 102000:
-      gc.collect()
-    conn, addr = s.accept()
-    conn.settimeout(3.0)
-    print('Got a connection from %s' % str(addr))
-    request = conn.recv(1024)
-    conn.settimeout(None)
-    request = str(request)
-    print('Content = %s' % request)
-    led_on = request.find('/?led=on')
-    led_off = request.find('/?led=off')
-    if led_on == 6:
-      print('LED ON')
-      led.value(1)
-    if led_off == 6:
-      print('LED OFF')
-      led.value(0)
-    response = web_page()
-    conn.send('HTTP/1.1 200 OK\n')
-    conn.send('Content-Type: text/html\n')
-    conn.send('Connection: close\n\n')
-    conn.sendall(response)
-    conn.close()
-  except OSError as e:
-    conn.close()
-    print('Connection closed')
+#         # Set up buzzer controller
+#         self.buzzer_controller = BuzzerController(GPIO_BUZZER_PIN, settings)
+
+#         # Set up button LED (LED on for REV 3.x boards)
+#         self.button_led_pin = Pin(GPIO_BUTTON_LED_PIN, Pin.OUT)
+#         self.button_led_pin.value(1)  # Turn on LED
+
+#         # Reset the RFID card
+#         self.rfid_rst_pin = Pin(GPIO_RFID_NRST_PIN, Pin.OUT)
+#         self.rfid_rst_pin.value(0)
+
+#         # Setup the button
+#         self.button_pin = Pin(GPIO_BUTTON_PIN, Pin.IN, Pin.PULL_DOWN)
+        
+#         # Set up display controller
+#         self.led_type = settings["display"]["led_type"]
+#         self.display_controller = None
+
+#         # Initialize buzzer settings
+#         self.buzzer_enabled = settings.get("display", {}).get("buzzer_enabled", True)
+
+#         # Create RFID reader (Adapt this part as necessary for MicroPython)
+#         self.RFIDReader = None  # You'll need to adapt your RFID code for MicroPython
+
+#         # State initialization
+#         self.sleepMode = False
+
+#     def set_equipment_power_on(self, state):
+#         '''
+#         Turn on/off power to the attached equipment by switching on/off relay
+#         and interlock.
+#         '''
+#         if state:
+#             os.system("echo True > /tmp/running")
+#         else:
+#             os.system("echo False > /tmp/running")
+
+#         self.ssr_pin.value(state)
+#         self.interlock_pin.value(state)
+
+#     def get_button_state(self):
+#         '''
+#         Determine the current button state
+#         '''
+#         return self.button_pin.value() == 1
+
+#     def has_button_been_pressed(self):
+#         '''
+#         Check if the button has been pressed since the last call
+#         '''
+#         return self.button_pin.value() == 1
+
+#     def read_RFID_card(self):
+#         '''
+#         Read an RFID card
+#         '''
+#         return 123456
+    
+#     def read_Pin(self):
+#         '''
+#         Read an Pin from the keypad
+#         '''
+#         return 1234
+
+#     def set_display_color(self, color=BLACK):
+#         '''
+#         Set the entire display strip to the specified color.
+#         '''
+#         if self.display_controller:
+#             self.display_controller.set_display_color(bytes.fromhex(color))
+#         else:
+#             logging.info("Display controller not initialized.")
+
+#     def start_beeping(self, freq, duration=2.0, beeps=10):
+#         '''
+#         Start beeping for the duration with the given number of beeps
+#         '''
+#         if self.buzzer_enabled:
+#             self.buzzer_controller.beep(freq, duration, beeps)
+
+#     def stop_buzzer(self):
+#         '''
+#         Stops buzzer activity.
+#         '''
+#         self.buzzer_controller.stop()
+
+#     def cleanup(self):
+#         '''
+#         Clean up resources.
+#         '''
+#         logging.info("Cleaning up resources.")
+#         self.buzzer_controller.shutdown_buzzer()
+#         self.set_display_color("00 00 00")  # Turn off display
+#         self.interlock_pin.value(0)
+#         self.ssr_pin.value(0)
+#         os.system("echo False > /tmp/running")
