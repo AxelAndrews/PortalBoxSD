@@ -291,5 +291,5 @@ print(f"User Verified: {is_verified}")
 print(f"Time taken to verify new user (after adding): {end_time - start_time:.4f} seconds")
 
 print("============TESTING FOR WIFI CONNECTION============")
-Need to connect to an ESP32
+#Need to connect to an ESP32
 portalInstance.connectToWifi() # Previously Tested Successfully
