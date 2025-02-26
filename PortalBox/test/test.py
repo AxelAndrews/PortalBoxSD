@@ -6,6 +6,7 @@ np=neopixel.NeoPixel(led,1)
 # mpremote run test.py
 # mpremote fs cp testKeypad.py :main.py
 # ASYNC IO
+# pin = machine.Pin(0, machine.Pin.OUT); pin.value(0)
 while True:
      # print("hi")
      np[0]= (30,0,0)

@@ -6,7 +6,7 @@ import serial
 from MFRC522 import MFRC522  # Importing the MFRC522 class you provided earlier
 
 # Port configuration for Windows (COM5)
-SERIAL_PORT = 'COM5'
+SERIAL_PORT = 'COM8'
 
 # Initialize MFRC522 reader on the specified serial port
 reader = MFRC522(dev=SERIAL_PORT)
