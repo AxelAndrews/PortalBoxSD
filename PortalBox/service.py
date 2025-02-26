@@ -25,13 +25,8 @@ class PortalBoxService:
         led = Pin(8, Pin.OUT) # GPIO2 is often connected to the onboard LED
         self.np=neopixel.NeoPixel(led,1) 
         self.state = State.IDLE_NOCARD
-        # CardReader.do_read()
         
         self.startUp()
-        # self.timeStart = datetime.now()
-        # self.graceStart = datetime.now()
-        # self.timeDelta = timedelta(0)
-        # self.graceDelta = timedelta(seconds = 2)
         
     def startUp(self):
         while True:
@@ -42,14 +37,29 @@ class PortalBoxService:
                 self.connectToWifi()
                 
             #Keep looping until it gets a RFID card
+
+            if self.readCardReader()==-1 and self.state != State.IDLE_NOCARD:
+                self.enterIdleNoCard()
+                
             if self.state == State.IDLE_NOCARD:
                 self.userID = self.readCardReader() #Gives up after 1 tries
                 if self.verifyUserID(self.userID):
-                    self.turnGreen()
+                    self.enterIdleAwaitPin()
                 else:
                     self.turnRed()
-                    
+                    continue
                 
+            if self.state == State.IDLE_AWAIT_PIN:
+                if self.verifyUserPin(self.readKeypad()):
+                    self.enterRunningAuthorized()
+                    self.turnGreen()
+                else:
+                    while not self.buttonPressed():
+                        # START BUZZER
+                        pass
+                    #STOP BUZZER
+                    continue
+                    
 
     def turnGreen(self):
         self.np[0]= (0,30,0)
@@ -68,8 +78,8 @@ class PortalBoxService:
         self.state = State.IDLE_UNAUTHORIZED
         print(f"State changed to: {self.state}")
 
-    def enterIdleAuthWaitingPin(self):
-        self.state = State.IDLE_AUTH_WAITINGPIN
+    def enterIdleAwaitPin(self):
+        self.state = State.IDLE_AWAIT_PIN
         print(f"State changed to: {self.state}")
 
     def enterRunningAuthorized(self):
@@ -80,14 +90,14 @@ class PortalBoxService:
         self.state = State.RUNNING_NOCARD
         print(f"State changed to: {self.state}")
         
-    def buttonPress(self):
+    def buttonPressed(self):
         return True
 
     def readKeypad(self):
         '''
         Get data from the RFID Scanner
         '''
-        return ['1111','2222', '3333']
+        return '0000'
     
     def readCardReader(self):
         '''
@@ -120,7 +130,7 @@ class PortalBoxService:
         '''
         Get data from CSV and verify if the given user exists
         '''
-        if self.currUser[2]== pin:
+        if self.currUser[2].strip()== pin:
             return True
         else:
             return False
