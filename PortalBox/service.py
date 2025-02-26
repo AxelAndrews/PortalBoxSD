@@ -1,24 +1,33 @@
 import network #REQUIRES A ESP32 TO BE CONNECTED ELSE AN ERROR WILL OCCUR
 import time
+import neopixel
+from machine import Pin
 # import datetime
-# import csv
-from portalboxFSM import State
+from portalBoxFSM import State
 # import gspread
 # from google.oauth2.service_account import Credentials
 import os
+
+import read as CardReader
 
 class Database:
     pass
 
 class PortalBoxService:
     def __init__(self):
-        self.filename="./userData.csv"
-        self.debugFile="./debug.csv"
+        self.filename="./userData.txt"
+        self.debugFile="./debug.txt"
         self.wlan = network.WLAN(network.STA_IF)
         self.wlan.active(True)
         self.currUser=[]
+        self.userID=""
+
+        led = Pin(8, Pin.OUT) # GPIO2 is often connected to the onboard LED
+        self.np=neopixel.NeoPixel(led,1) 
         self.state = State.IDLE_NOCARD
-        # self.startUp()
+        # CardReader.do_read()
+        
+        self.startUp()
         # self.timeStart = datetime.now()
         # self.graceStart = datetime.now()
         # self.timeDelta = timedelta(0)
@@ -27,72 +36,29 @@ class PortalBoxService:
     def startUp(self):
         while True:
             # Ensure connection to the internet
-            while not self.isConnectedToWifi():
+            while not self.wlan.isconnected():
                 self.log_to_debug_file("Connecting/Reconnecting to Internet")
                 self.enterIdleNoCard()
                 self.connectToWifi()
                 
             #Keep looping until it gets a RFID card
             if self.state == State.IDLE_NOCARD:
-                userID = self.readCardReader() # SHOULD TIME OUT AFTER 1 second
-                continue
-            # FIGURE OUT HOW WE CAN TRANSITION TO THE RUNNING NO CARD STATE
-            elif self.state==State.RUNNING_AUTHORIZED and self.readCardReader():
-                self.state = State.RUNNING_NOCARD
-                continue
-            #Authorized and Looking for a Proxy Card
-            elif self.state == State.RUNNING_NOCARD:
-                ############
-                #Start Buzzer
-                ############
-                userID = self.readCardReader()
-                #Check for button press OR a new card is inserted
-                #THIS DOES NOT WORK ATM, FIGURE OUT HOW TO STOP THE CARD READER
-                while True:
-                    # If button is pressed then reset to default state and wait for next card
-                    if self.buttonPress():
-                        self.state=State.IDLE_NOCARD
-                        break
-                    # If a new card is inserted, update the self.currUser
-                    else:
-                        userID=self.readCardReader()
-                        # If it is a proxy card, switch to proxy state
-                        if self.currUser[1] != 2:
-                            self.state==State.RUNNING_PROXY
-                            break
-                        else:
-                            break
-                    time.sleep(2)
+                self.userID = self.readCardReader() #Gives up after 1 tries
+                if self.verifyUserID(self.userID):
+                    self.turnGreen()
+                else:
+                    self.turnRed()
                     
-            elif self.state == State.RUNNING_TRAINING:
-                #Don't worry about this for now
-                pass
-                    
-            #Once we get a UserID OR Proxy Card, verify it
-            if self.verifyUserID(userID):
-                #CardID is in csv
-                self.enterIdleAuthWaitingPin()
-            else:
-                self.enterIdleUnauthorized()
-                time.sleep(2)
-                self.enterIdleNoCard()
-            
-            #Keep looping until it gets a Pin card
-            pin = self.readKeypad()
-            while True:
-                pin = self.readKeypad()
-                break
-            
-            if self.verifyUserPin(pin):
-                #Verify Pin and Authorize User
-                self.enterRunningAuthorized()
-                #Deliver Power to Machine/Power Relay
-            else:
-                self.enterIdleUnauthorized()
-                time.sleep(2)
-                self.enterIdleNoCard()
                 
-            time.sleep(2)
+
+    def turnGreen(self):
+        self.np[0]= (0,30,0)
+        self.np.write()
+
+        
+    def turnRed(self):
+        self.np[0]= (30,0,0)
+        self.np.write()
 
     def enterIdleNoCard(self):
         self.state = State.IDLE_NOCARD
@@ -127,25 +93,26 @@ class PortalBoxService:
         '''
         Get data from the RFID Scanner
         '''
-        #Simulates 3 different RFID tags with pins
-        return ['1111111111111111',
-                '2222222222222222',
-                '3333333333333333']
+        return CardReader.do_read()
         
         
     def verifyUserID(self, userID):
         '''
         Get data from CSV and verify if the given user exists
         '''
-        file = open(self.filename, mode='r')
         try:
-            reader = csv.reader(file)
-            next(reader)
-            for row in reader:
-                if row[1] == userID:
-                    self.currUser=row
-                    return True
-            return False
+            with open(self.filename, mode='r') as file:
+                lines = file.readlines()
+                for line in lines[1:]:
+                    row = line.strip().split(',')
+                    # print(row[1].strip())
+                    # print(userID)
+                    # print(row[1].strip() == userID)
+                    # print("===============")
+                    if row[1].strip() == userID:  # Assuming UserID is in the first column
+                        self.currUser = row
+                        return True
+            return False  # Return False if the userID is not found
         finally:
             file.close()
             
@@ -331,13 +298,21 @@ class PortalBoxService:
                 writer.writerow(row)
 
         print(f"CSV file '{self.filename}' has been overwritten with the latest data from the Google Sheet.")
-        
-    def log_to_debug_file(message):
+    
+    def log_to_debug_file(self, message):
         """
         A helper function to log messages to 'debug.txt'.
         """
+        # Get the current local time as a tuple (year, month, day, hour, minute, second, weekday, yearday)
+        current_time = time.localtime()
+        
+        # Manually format the timestamp as "YYYY-MM-DD HH:MM:SS"
+        timestamp = "{:04}-{:02}-{:02} {:02}:{:02}:{:02}".format(
+            current_time[0], current_time[1], current_time[2],  # Year, Month, Day
+            current_time[3], current_time[4], current_time[5]   # Hour, Minute, Second
+        )
+        
         with open("debug.txt", "a") as debug_file:
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             debug_file.write(f"<{timestamp}> - {message}\n")
 
 
@@ -391,6 +366,64 @@ portalInstance = PortalBoxService()
 # print(f"User Verified: {is_verified}")
 # print(f"Time taken to verify new user (after adding): {end_time - start_time:.4f} seconds")
 
-print("============TESTING FOR WIFI CONNECTION============")
-#Need to connect to an ESP32
-portalInstance.connectToWifi() # Previously Tested Successfully
+# print("============TESTING FOR WIFI CONNECTION============")
+# #Need to connect to an ESP32
+# portalInstance.connectToWifi() # Previously Tested Successfully
+
+
+
+            # # FIGURE OUT HOW WE CAN TRANSITION TO THE RUNNING NO CARD STATE
+            # elif self.state==State.RUNNING_AUTHORIZED and self.readCardReader():
+            #     self.state = State.RUNNING_NOCARD
+            #     continue
+            # #Authorized and Looking for a Proxy Card
+            # elif self.state == State.RUNNING_NOCARD:
+            #     ############
+            #     #Start Buzzer
+            #     ############
+            #     userID = self.readCardReader()
+            #     #Check for button press OR a new card is inserted
+            #     #THIS DOES NOT WORK ATM, FIGURE OUT HOW TO STOP THE CARD READER
+            #     while True:
+            #         # If button is pressed then reset to default state and wait for next card
+            #         if self.buttonPress():
+            #             self.state=State.IDLE_NOCARD
+            #             break
+            #         # If a new card is inserted, update the self.currUser
+            #         else:
+            #             userID=self.readCardReader()
+            #             # If it is a proxy card, switch to proxy state
+            #             if self.currUser[1] != 2:
+            #                 self.state==State.RUNNING_PROXY
+            #                 break
+            #             else:
+            #                 break
+            #         time.sleep(2)
+                    
+            # elif self.state == State.RUNNING_TRAINING:
+            #     #Don't worry about this for now
+            #     pass
+                    
+            # #Once we get a UserID OR Proxy Card, verify it
+            # if self.verifyUserID(userID):
+            #     #CardID is in csv
+            #     self.enterIdleAuthWaitingPin()
+            # else:
+            #     self.enterIdleUnauthorized()
+            #     time.sleep(2)
+            #     self.enterIdleNoCard()
+            
+            # #Keep looping until it gets a Pin card
+            # pin = self.readKeypad()
+            # while True:
+            #     pin = self.readKeypad()
+            #     break
+            
+            # if self.verifyUserPin(pin):
+            #     #Verify Pin and Authorize User
+            #     self.enterRunningAuthorized()
+            #     #Deliver Power to Machine/Power Relay
+            # else:
+            #     self.enterIdleUnauthorized()
+            #     time.sleep(2)
+            #     self.enterIdleNoCard()
