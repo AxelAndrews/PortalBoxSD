@@ -10,6 +10,7 @@ import gc
 
 # Our code - adjust imports based on your file structure
 from Database import CardType
+import Service
 
 # Use simpler time handling for MicroPython
 class SimpleDateTime:
@@ -50,6 +51,7 @@ class State(object):
     def next_state(self, cls, input_data):
         print(f"State transition: {self.__class__.__name__} -> {cls.__name__}")
         self.__class__ = cls
+        print(self.__class__)
         self.on_enter(input_data)
 
     def on_enter(self, input_data):
@@ -94,7 +96,7 @@ class Setup(State):
     def on_enter(self, input_data):
         # Do everything related to setup, if anything fails and returns an exception, then go to Shutdown
         print("Starting setup")
-        self.service.box.set_display_color(self.service.settings["display"]["setup_color"])
+        # self.service.box.set_display_color(self.service.settings["display"]["setup_color"])
         try:
             try:
                 self.service.connect_to_database()
@@ -102,15 +104,15 @@ class Setup(State):
                 print(f"Database connection failed: {e}")
                 raise e
 
-            self.service.box.set_display_color(self.service.settings["display"]["setup_color_db"])
+            # self.service.box.set_display_color(self.service.settings["display"]["setup_color_db"])
 
-            try:
-                self.service.connect_to_email()
-            except Exception as e:
-                print(f"Email connection failed: {e}")
-                raise e
+            # try:
+            #     self.service.connect_to_email()
+            # except Exception as e:
+            #     print(f"Email connection failed: {e}")
+            #     raise e
 
-            self.service.box.set_display_color(self.service.settings["display"]["setup_color_email"])
+            # self.service.box.set_display_color(self.service.settings["display"]["setup_color_email"])
 
             try:
                 self.service.get_equipment_role()
@@ -118,20 +120,23 @@ class Setup(State):
                 print(f"Getting equipment role failed: {e}")
                 raise e
 
-            try:
-                self.service.record_ip()
-            except Exception as e:
-                print(f"Recording IP failed: {e}")
-                raise e
+            # try:
+            #     self.service.record_ip()
+            # except Exception as e:
+            #     print(f"Recording IP failed: {e}")
+            #     raise e
 
-            self.service.box.set_display_color(self.service.settings["display"]["setup_color_role"])
+            # self.service.box.set_display_color(self.service.settings["display"]["setup_color_role"])
 
-            self.timeout_delta = timedelta(minutes=self.service.timeout_minutes)
+            self.timeout_delta = 100
+            print("Checkpoint 1")
+            #timedelta(minutes=self.service.timeout_minutes)
             
             # Get grace period from settings, with a default of 2 seconds
             grace_period = 2
             if "user_exp" in self.service.settings and "grace_period" in self.service.settings["user_exp"]:
                 try:
+                    print("Trying Grace Period")
                     grace_period = int(self.service.settings["user_exp"]["grace_period"])
                 except ValueError:
                     pass
@@ -141,19 +146,21 @@ class Setup(State):
             
             # Get flash rate from settings, with a default of 3
             flash_rate = 3
-            if "display" in self.service.settings and "flash_rate" in self.service.settings["display"]:
-                try:
-                    flash_rate = int(self.service.settings["display"]["flash_rate"])
-                except ValueError:
-                    pass
+            # if "display" in self.service.settings and "flash_rate" in self.service.settings["display"]:
+            #     try:
+            #         flash_rate = int(self.service.settings["display"]["flash_rate"])
+            #     except ValueError:
+            #         pass
                     
             self.flash_rate = flash_rate
             
             self.next_state(IdleNoCard, input_data)
-            self.service.box.buzz_tone(500, 0.2)
+            print('NEW STATE!!!!!!!!!!!')
+            # self.service.box.buzz_tone(500, 0.2)
             
             # Free up memory after setup is complete
             gc.collect()
+            print("END OF SETUP!!!!!!!!!!!!!!!")
             
         except Exception as e:
             print(f"Unable to complete setup, exception raised: {e}")
@@ -176,8 +183,8 @@ class IdleNoCard(State):
         if input_data["card_id"] > 0:
             self.next_state(IdleUnknownCard, input_data)
 
-    def on_enter(self, input_data):
-        self.service.box.sleep_display()
+    # def on_enter(self, input_data):
+        # self.service.box.sleep_display()
 
 class AccessComplete(State):
     """
@@ -287,7 +294,7 @@ class RunningAuthUser(State):
         self.proxy_id = 0
         self.training_id = 0
         self.service.box.set_equipment_power_on(True)
-        self.service.box.set_display_color(self.service.settings["display"]["auth_color"])
+        # self.service.box.set_display_color(self.service.settings["display"]["auth_color"])
         self.service.box.beep_once()
 
         # If the card is new ie, not coming from a timeout then don't log this as a new session
@@ -308,7 +315,7 @@ class IdleUnauthCard(State):
     def on_enter(self, input_data):
         self.service.box.beep_once()
         self.service.box.set_equipment_power_on(False)
-        self.service.box.set_display_color(self.service.settings["display"]["unauth_color"])
+        # self.service.box.set_display_color(self.service.settings["display"]["unauth_color"])
         self.service.db.log_access_attempt(input_data["card_id"], self.service.equipment_id, False)
 
 class RunningNoCard(State):
@@ -334,11 +341,11 @@ class RunningNoCard(State):
     def on_enter(self, input_data):
         print("Grace period started")
         self.grace_start = datetime.now()
-        self.service.box.flash_display(
-            self.service.settings["display"]["no_card_grace_color"],
-            int(self.grace_delta.total_seconds() * 1000),
-            int(self.grace_delta.total_seconds() * self.flash_rate)
-        )
+        # self.service.box.flash_display(
+        #     self.service.settings["display"]["no_card_grace_color"],
+        #     int(self.grace_delta.total_seconds() * 1000),
+        #     int(self.grace_delta.total_seconds() * self.flash_rate)
+        # )
         
         self.service.box.start_beeping(
             800,
@@ -374,12 +381,12 @@ class RunningUnauthCard(State):
         print("Unauthorized Card grace period started")
         print(f"Card type was {input_data['card_type']}")
         self.grace_start = datetime.now()
-        self.service.box.set_display_color(self.service.settings["display"]["unauth_card_grace_color"])
-        self.service.box.flash_display(
-            self.service.settings["display"]["unauth_card_grace_color"],
-            int(self.grace_delta.total_seconds() * 1000),
-            int(self.grace_delta.total_seconds() * self.flash_rate)
-        )
+        # self.service.box.set_display_color(self.service.settings["display"]["unauth_card_grace_color"])
+        # self.service.box.flash_display(
+        #     self.service.settings["display"]["unauth_card_grace_color"],
+        #     int(self.grace_delta.total_seconds() * 1000),
+        #     int(self.grace_delta.total_seconds() * self.flash_rate)
+        # )
         
         self.service.box.start_beeping(
             800,
@@ -409,11 +416,11 @@ class RunningTimeout(State):
     def on_enter(self, input_data):
         print("Machine timeout, grace period started")
         self.grace_start = datetime.now()
-        self.service.box.flash_display(
-            self.service.settings["display"]["grace_timeout_color"],
-            int(self.grace_delta.total_seconds() * 1000),
-            int(self.grace_delta.total_seconds() * self.flash_rate)
-        )
+        # self.service.box.flash_display(
+        #     self.service.settings["display"]["grace_timeout_color"],
+        #     int(self.grace_delta.total_seconds() * 1000),
+        #     int(self.grace_delta.total_seconds() * self.flash_rate)
+        # )
         
         self.service.box.start_beeping(
             800,
@@ -434,15 +441,15 @@ class IdleAuthCard(State):
         self.service.box.set_equipment_power_on(False)
         self.service.db.log_access_completion(self.auth_user_id, self.service.equipment_id)
         
-        # If its a proxy card 
-        if self.proxy_id > 0:
-            self.service.send_user_email_proxy(self.auth_user_id)
-        elif self.training_id > 0:
-            self.service.send_user_email_training(self.auth_user_id, self.training_id)
-        else:
-            self.service.send_user_email(input_data["card_id"])
+        # # If its a proxy card 
+        # if self.proxy_id > 0:
+        #     self.service.send_user_email_proxy(self.auth_user_id)
+        # elif self.training_id > 0:
+        #     self.service.send_user_email_training(self.auth_user_id, self.training_id)
+        # else:
+        #     self.service.send_user_email(input_data["card_id"])
             
-        self.service.box.set_display_color(self.service.settings["display"]["timeout_color"])
+        # self.service.box.set_display_color(self.service.settings["display"]["timeout_color"])
         self.proxy_id = 0
         self.training_id = 0
         self.auth_user_id = 0
@@ -469,7 +476,7 @@ class RunningProxyCard(State):
             
         self.proxy_id = input_data["card_id"]
         self.service.box.set_equipment_power_on(True)
-        self.service.box.set_display_color(self.service.settings["display"]["proxy_color"])
+        # self.service.box.set_display_color(self.service.settings["display"]["proxy_color"])
         self.service.box.beep_once()
 
 class RunningTrainingCard(State):
@@ -494,5 +501,5 @@ class RunningTrainingCard(State):
         self.training_id = input_data["card_id"]
         
         self.service.box.set_equipment_power_on(True)
-        self.service.box.set_display_color(self.service.settings["display"]["training_color"])
+        # self.service.box.set_display_color(self.service.settings["display"]["training_color"])
         self.service.box.beep_once()

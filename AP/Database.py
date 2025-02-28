@@ -33,6 +33,7 @@ class Database:
         self.api_host = settings['website']
         self.api_path = f"/api/{settings['api']}"
         self.api_token = settings['bearer_token']
+        print(self.api_token)
         
         # State variables needed for authorization logic
         self.requires_training = True
@@ -66,13 +67,14 @@ class Database:
             addr = addr_info[0][-1]  # Extract (IP, port)
             
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(15)  # 15-second timeout for longer operations
-
+            sock.settimeout(10)  # 15-second timeout for longer operations
+            print(addr)
             # Try to connect with retries
             max_retries = 3
             for retry in range(max_retries):
                 try:
                     sock.connect(addr)
+                    print("SOCKET CREATED")
                     break
                 except OSError as e:
                     print(f"Connection attempt {retry+1} failed: {e}")
@@ -85,7 +87,6 @@ class Database:
                         sock.settimeout(15)
                     else:
                         raise
-
             # Prepare HTTP request
             request = (
                 method + " " + url_path + " HTTP/1.1\r\n"
@@ -94,6 +95,7 @@ class Database:
                 "Content-Type: application/x-www-form-urlencoded\r\n"
                 "Connection: close\r\n\r\n"
             )
+            print(request)
 
             print(f"Sending {method} request to: {self.api_host}{url_path}")
             sock.send(request.encode())
@@ -234,8 +236,6 @@ class Database:
         
         response = self._make_api_request("POST", params)
         
-        if response is None:
-            print("API error in log_started_status")
 
     def log_shutdown_status(self, equipment_id, card_id):
         '''

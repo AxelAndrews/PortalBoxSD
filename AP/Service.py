@@ -9,7 +9,8 @@ from machine import Pin # type: ignore
 
 # our code
 import PortalFSM as fsm
-import PortalBox
+# import PortalBox
+from PortalBox import PortalBox
 from Database import Database
 from Database import CardType as CardType
 
@@ -40,6 +41,40 @@ class PortalBoxApplication():
         self.settings = settings
         self.running = False
         self.card_id = 0
+        self.WIFI_SSID="bucknell_iot"
+        self.WIFI_PASSWORD=""
+        self.connect_wifi()
+        
+    def connect_wifi(self):
+        """Connects to WiFi and prints the IP and MAC address."""
+        print("Connecting to WiFi...")
+        wlan = network.WLAN(network.STA_IF)
+        wlan.active(True)
+    
+        try:
+            wlan.connect(self.WIFI_SSID, self.WIFI_PASSWORD)
+        
+            # Wait for connection with timeout
+            max_wait = 10
+            while max_wait > 0:
+                if wlan.isconnected():
+                    break
+                max_wait -= 1
+                print("Waiting for connection...")
+                time.sleep(1)
+            
+            if wlan.isconnected():
+                print(f"Connected! IP: {wlan.ifconfig()[0]}")
+                mac_bytes = wlan.config('mac')
+                mac_hex = ''.join(['{:02x}'.format(b) for b in mac_bytes])
+                print(f"Device MAC address: {mac_hex}")
+                return True
+            else:
+                print("Could not connect to WiFi")
+                return False
+        except Exception as e:
+            print(f"WiFi connection failed: {e}")
+            return False
 
     def connect_to_database(self):
         '''

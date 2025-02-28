@@ -17,14 +17,14 @@ INTERLOCK_PIN = 16       # GPIO16
 BUTTON_LED_PIN = 17      # GPIO17
 BUZZER_PIN = 18          # GPIO18
 BUTTON_PIN = 19          # GPIO19
-RELAY_PIN = 21           # GPIO21
+RELAY_PIN = 7           # GPIO21
 RFID_RST_PIN = 22        # GPIO22
 
 # RFID SPI pins
-RFID_SPI_SCK = 5         # GPIO5
-RFID_SPI_MOSI = 23       # GPIO23
-RFID_SPI_MISO = 19       # GPIO19
-RFID_SPI_CS = 2          # GPIO2
+RFID_SPI_SCK = 2         # GPIO5
+RFID_SPI_MOSI = 11       # GPIO23
+RFID_SPI_MISO = 10       # GPIO19
+RFID_SPI_CS = 2          # GPIO2 SDA
 
 # Default color - black (off)
 BLACK = "00 00 00"
@@ -48,7 +48,7 @@ class PortalBox:
         self.button_last_check = time.ticks_ms()
         
         # Setup the buzzer controller
-        self.buzzer_controller = BuzzerController(BUZZER_PIN, settings)
+        # self.buzzer_controller = BuzzerController(BUZZER_PIN, settings)
         
         # Turn on button LED
         self.button_led_pin.on()
@@ -86,7 +86,7 @@ class PortalBox:
         # Create RFID reader
         print("Creating RFID reader")
         spi = SPI(1, baudrate=2500000, polarity=0, phase=0, sck=Pin(RFID_SPI_SCK), mosi=Pin(RFID_SPI_MOSI), miso=Pin(RFID_SPI_MISO))
-        self.RFIDReader = MFRC522(spi=spi, gpioRst=RFID_RST_PIN, gpioCs=RFID_SPI_CS)
+        self.RFIDReader = MFRC522(spi=spi, cs=Pin(RFID_SPI_CS,Pin.OUT))
         
         # Setup state
         self.sleepMode = False
@@ -114,7 +114,8 @@ class PortalBox:
         '''
         Determine the current button state
         '''
-        return bool(self.button_pin.value())
+        # return bool(self.button_pin.value())
+        return bool(0)
     
     def has_button_been_pressed(self):
         '''
@@ -168,145 +169,145 @@ class PortalBox:
         
         return -1
     
-    def wake_display(self):
-        if self.display_controller:
-            self.display_controller.wake_display()
-        else:
-            print("PortalBox wake_display failed")
+    # def wake_display(self):
+    #     if self.display_controller:
+    #         self.display_controller.wake_display()
+    #     else:
+    #         print("PortalBox wake_display failed")
     
-    def sleep_display(self):
-        '''
-        Sets LED display to indicate the box is in a low power mode
-        '''
-        self.stop_flashing()
-        if self.display_controller:
-            self.display_controller.sleep_display()
-        else:
-            print("PortalBox sleep_display failed")
+    # def sleep_display(self):
+    #     '''
+    #     Sets LED display to indicate the box is in a low power mode
+    #     '''
+    #     self.stop_flashing()
+    #     if self.display_controller:
+    #         self.display_controller.sleep_display()
+    #     else:
+    #         print("PortalBox sleep_display failed")
     
-    def set_display_color(self, color=BLACK, stop_flashing=True):
-        '''
-        Set the entire strip to specified color
-        @param color - hex string with color to set ("RR GG BB"). Defaults to LEDs off
-        '''
-        self.wake_display()
-        if stop_flashing:
-            self.stop_flashing()
+    # def set_display_color(self, color=BLACK, stop_flashing=True):
+    #     '''
+    #     Set the entire strip to specified color
+    #     @param color - hex string with color to set ("RR GG BB"). Defaults to LEDs off
+    #     '''
+    #     self.wake_display()
+    #     if stop_flashing:
+    #         self.stop_flashing()
         
-        if self.display_controller:
-            # Convert hex string to bytes
-            if isinstance(color, str):
-                color = bytes.fromhex(color)
-            self.display_controller.set_display_color(color)
-        else:
-            print("PortalBox set_display_color failed")
+    #     if self.display_controller:
+    #         # Convert hex string to bytes
+    #         if isinstance(color, str):
+    #             color = bytes.fromhex(color)
+    #         self.display_controller.set_display_color(color)
+    #     else:
+    #         print("PortalBox set_display_color failed")
     
-    def set_display_color_wipe(self, color=BLACK, duration=1000):
-        '''
-        Set the entire strip to specified color using a "wipe" effect
-        @param color - color to set. Defaults to LEDs off
-        @param duration - milliseconds for the effect
-        '''
-        self.wake_display()
-        if self.display_controller:
-            # Convert hex string to bytes if needed
-            if isinstance(color, str):
-                color = bytes.fromhex(color)
-            self.display_controller.set_display_color_wipe(color, duration)
-        else:
-            print("PortalBox color_wipe failed")
+    # def set_display_color_wipe(self, color=BLACK, duration=1000):
+    #     '''
+    #     Set the entire strip to specified color using a "wipe" effect
+    #     @param color - color to set. Defaults to LEDs off
+    #     @param duration - milliseconds for the effect
+    #     '''
+    #     self.wake_display()
+    #     if self.display_controller:
+    #         # Convert hex string to bytes if needed
+    #         if isinstance(color, str):
+    #             color = bytes.fromhex(color)
+    #         self.display_controller.set_display_color_wipe(color, duration)
+    #     else:
+    #         print("PortalBox color_wipe failed")
     
-    def flash_display(self, color, duration=2000, flashes=10, end_color=BLACK):
-        """
-        Flash color across all display pixels multiple times
-        @param color - color to flash
-        @param duration - milliseconds for entire effect
-        @param flashes - number of flashes during duration
-        @param end_color - color to end with
-        """
-        self.wake_display()
+    # def flash_display(self, color, duration=2000, flashes=10, end_color=BLACK):
+    #     """
+    #     Flash color across all display pixels multiple times
+    #     @param color - color to flash
+    #     @param duration - milliseconds for entire effect
+    #     @param flashes - number of flashes during duration
+    #     @param end_color - color to end with
+    #     """
+    #     self.wake_display()
         
-        if self.display_controller:
-            # Create and start flash task
-            self.stop_flashing()  # Stop any existing flash
+        # if self.display_controller:
+        #     # Create and start flash task
+        #     self.stop_flashing()  # Stop any existing flash
             
-            if self.led_type == "NEOPIXELS":
-                # Start flash manually in a loop
-                self.flash_signal = True
-                self._flash_thread(color, duration, flashes, end_color)
-            elif self.led_type == "DOTSTARS":
-                # Use controller's flash method
-                if isinstance(color, str):
-                    color = bytes.fromhex(color)
-                self.display_controller.flash_display(color, duration, flashes)
-        else:
-            print("PortalBox flash_display failed")
+        #     if self.led_type == "NEOPIXELS":
+        #         # Start flash manually in a loop
+        #         self.flash_signal = True
+        #         self._flash_thread(color, duration, flashes, end_color)
+        #     elif self.led_type == "DOTSTARS":
+        #         # Use controller's flash method
+        #         if isinstance(color, str):
+        #             color = bytes.fromhex(color)
+        #         self.display_controller.flash_display(color, duration, flashes)
+        # else:
+        #     print("PortalBox flash_display failed")
     
-    def _flash_thread(self, color, duration, flashes, end_color):
-        """
-        Perform the flashing effect (called directly, no threading in MicroPython)
-        """
-        start_time = time.ticks_ms()
-        interval = duration / flashes
+    # def _flash_thread(self, color, duration, flashes, end_color):
+    #     """
+    #     Perform the flashing effect (called directly, no threading in MicroPython)
+    #     """
+    #     start_time = time.ticks_ms()
+    #     interval = duration / flashes
         
-        if isinstance(color, str):
-            color = bytes.fromhex(color)
-        if isinstance(end_color, str):
-            end_color = bytes.fromhex(end_color)
+    #     if isinstance(color, str):
+    #         color = bytes.fromhex(color)
+    #     if isinstance(end_color, str):
+    #         end_color = bytes.fromhex(end_color)
         
-        while self.flash_signal and time.ticks_diff(time.ticks_ms(), start_time) < duration:
-            # Toggle between colors
-            self.set_display_color(color, False)
-            time.sleep(interval/2000)  # Half interval with first color
+    #     while self.flash_signal and time.ticks_diff(time.ticks_ms(), start_time) < duration:
+    #         # Toggle between colors
+    #         self.set_display_color(color, False)
+    #         time.sleep(interval/2000)  # Half interval with first color
             
-            if not self.flash_signal:
-                break
+    #         if not self.flash_signal:
+    #             break
                 
-            self.set_display_color(end_color, False)
-            time.sleep(interval/2000)  # Half interval with second color
+    #         self.set_display_color(end_color, False)
+    #         time.sleep(interval/2000)  # Half interval with second color
             
-            # Allow other tasks to run
-            gc.collect()
+    #         # Allow other tasks to run
+    #         gc.collect()
     
-    def stop_flashing(self):
-        """
-        Stops the flashing effect
-        """
-        self.flash_signal = False
+    # def stop_flashing(self):
+    #     """
+    #     Stops the flashing effect
+    #     """
+    #     self.flash_signal = False
     
-    def buzz_tone(self, freq, length=0.2, stop_song=False, stop_beeping=False):
-        """
-        Plays the specified tone on the buzzer for the specified length
-        """
-        if self.buzzer_enabled:
-            self.buzzer_controller.buzz_tone(freq, length, stop_song, stop_beeping)
+    # def buzz_tone(self, freq, length=0.2, stop_song=False, stop_beeping=False):
+    #     """
+    #     Plays the specified tone on the buzzer for the specified length
+    #     """
+    #     if self.buzzer_enabled:
+    #         self.buzzer_controller.buzz_tone(freq, length, stop_song, stop_beeping)
     
-    def start_beeping(self, freq, duration=2.0, beeps=10):
-        """
-        Starts beeping for the duration with the given number of beeps
-        """
-        if self.buzzer_enabled:
-            self.buzzer_controller.beep(freq, duration, beeps)
+    # def start_beeping(self, freq, duration=2.0, beeps=10):
+    #     """
+    #     Starts beeping for the duration with the given number of beeps
+    #     """
+    #     if self.buzzer_enabled:
+    #         self.buzzer_controller.beep(freq, duration, beeps)
     
-    def stop_buzzer(self, stop_singing=False, stop_buzzing=False, stop_beeping=False):
-        """
-        Stops the specified effect(s) on the buzzer
-        """
-        self.buzzer_controller.stop(stop_singing, stop_buzzing, stop_beeping)
+    # def stop_buzzer(self, stop_singing=False, stop_buzzing=False, stop_beeping=False):
+    #     """
+    #     Stops the specified effect(s) on the buzzer
+    #     """
+    #     self.buzzer_controller.stop(stop_singing, stop_buzzing, stop_beeping)
     
-    def beep_once(self):
-        """
-        Beeps the buzzer once for a default freq and length
-        """
-        self.buzz_tone(800, 0.1)
+    # def beep_once(self):
+    #     """
+    #     Beeps the buzzer once for a default freq and length
+    #     """
+    #     self.buzz_tone(800, 0.1)
     
     def cleanup(self):
         """
         Clean up resources before shutting down
         """
         print("PortalBox.cleanup() starts")
-        self.buzzer_controller.shutdown_buzzer()
-        self.set_display_color(BLACK, False)
+        # self.buzzer_controller.shutdown_buzzer()
+        # self.set_display_color(BLACK, False)
         
         # Turn off all pins
         self.relay_pin.off()

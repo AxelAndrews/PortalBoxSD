@@ -4,8 +4,8 @@
       "password": "PORTALBOX",
       "host": "portalboxdb.cbwumiue49n9.us-east-2.rds.amazonaws.com",
       "database": "portalboxdb",
-      "website": "portalboxdb.cbwumiue49n9.us-east-2.rds.amazonaws.com",
-      "api": "/api/box.php",
+      "website": "ec2-3-14-141-222.us-east-2.compute.amazonaws.com",
+      "api": "box.php",
       "bearer_token": "290900415d2d7aac80229cdea4f90fbf"
     },
     "display": {
