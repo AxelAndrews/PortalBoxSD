@@ -1,7 +1,9 @@
 from machine import Pin
 import time
 import neopixel
-led = Pin(8, Pin.OUT) # GPIO2 is often connected to the onboard LED
+led_power = Pin(21, Pin.OUT)
+led_power.on() # GPIO2 is often connected to the onboard LED
+led = Pin(33, Pin.OUT)
 np=neopixel.NeoPixel(led,1) 
 # mpremote run test.py
 # mpremote fs cp testKeypad.py :main.py

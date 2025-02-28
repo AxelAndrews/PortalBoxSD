@@ -1,0 +1,33 @@
+{
+    "db": {
+      "user": "admin",
+      "password": "PORTALBOX",
+      "host": "portalboxdb.cbwumiue49n9.us-east-2.rds.amazonaws.com",
+      "database": "portalboxdb",
+      "website": "portalboxdb.cbwumiue49n9.us-east-2.rds.amazonaws.com",
+      "api": "/api/box.php",
+      "bearer_token": "290900415d2d7aac80229cdea4f90fbf"
+    },
+    "display": {
+      "setup_color": "FF FF FF",
+      "setup_color_db": "00 FF FF",
+      "setup_color_email": "FF FF 00",
+      "setup_color_role": "FF 00 FF",
+      "auth_color": "00 FF 00",
+      "proxy_color": "DF 20 00",
+      "training_color": "80 00 80",
+      "sleep_color": "00 00 FF",
+      "unauth_color": "FF 00 00",
+      "no_card_grace_color": "FF FF 00",
+      "grace_timeout_color": "DF 20 00",
+      "timeout_color": "FF 00 00",
+      "unauth_card_grace_color": "FF 80 00",
+      "flash_rate": 3,
+      "enable_buzzer": true,
+      "buzzer_pwm": true,
+      "led_type": "NEOPIXEL"
+    },
+    "user_exp": {
+      "grace_period": 2
+    }
+  }

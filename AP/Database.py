@@ -1,7 +1,6 @@
 # Database.py for ESP32-C6 MicroPython
 import json
 import time
-import network
 import socket
 import gc
 
