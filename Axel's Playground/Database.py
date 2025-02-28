@@ -1,386 +1,445 @@
-# import network
-# import socket
-# import time
-# import json
-# import ubinascii
-
-# # WiFi Configuration
-# WIFI_SSID = "bucknell_iot"
-# WIFI_PASSWORD = ""
-# API_HOST = "ec2-3-14-141-222.us-east-2.compute.amazonaws.com"
-# API_PATH = "/api/box.php"
-# API_TOKEN = "290900415d2d7aac80229cdea4f90fbf"
-
-# def connect_wifi():
-#     """Connects to WiFi and prints the IP and MAC address."""
-#     print("Connecting to WiFi...")
-#     wlan = network.WLAN(network.STA_IF)
-#     wlan.active(True)
-
-#     if not wlan.isconnected():
-#         wlan.connect(WIFI_SSID, WIFI_PASSWORD)
-#         while not wlan.isconnected():
-#             time.sleep(1)  # Wait for connection
-#             print("Waiting for WiFi connection...")
-    
-#     print(f"Connected! IP: {wlan.ifconfig()[0]}")
-#     # print(wlan.config('mac'))
-#     print(f"Device MAC address: {ubinascii.hexlify(wlan.config('mac')).decode()}")
-#     return True
-
-# def make_api_request(mode, mac_address):
-#     """Makes an HTTP GET request to the API."""
-#     try:
-#         # Create socket
-#         addr_info = socket.getaddrinfo(API_HOST, 80)  # Resolve host to IP address
-#         addr = addr_info[-1][-1]  # Extract (IP, port)
-
-#         print(f"Connecting to {API_HOST} ({addr})...")
-#         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#         print("hi")
-#         sock.settimeout(10)
-#         sock.connect(addr)  # Connect to API server
-#         # Prepare HTTP request
-#         url_path = f"{API_PATH}?mode={mode}&mac_adr={mac_address}"
-#         request = (
-#             "GET " + url_path + " HTTP/1.1\r\n"
-#             "Host: " + API_HOST + "\r\n"
-#             "Authorization: Bearer " + API_TOKEN + "\r\n"
-#             "Connection: close\r\n\r\n"
-#         )
-
-#         print(f"Requesting URL: {API_HOST}{API_PATH}?mode={mode}&mac_adr={mac_address}")
-#         sock.sendall(request.encode())  # Send HTTP request
-#         print("Request sent successfully")
-
-#         # Receive response
-#         response = b""
-#         while True:
-#             chunk = sock.recv(1024)
-#             if not chunk:
-#                 break
-#             response += chunk
-#         print("Response Formatted")
-
-#         # Close socket
-#         sock.close()
-
-#         # Convert response to string
-#         response_str = response.decode()
-#         print("Converted to string")
-
-#         # Split headers and body
-#         if "\r\n\r\n" in response_str:
-#             headers, body = response_str.split("\r\n\r\n", 1)
-#         else:
-#             headers, body = response_str, ""
-
-#         print("\nResponse Headers:")
-#         print(headers)
-
-#         print("\nResponse Body:")
-#         if not body.strip():
-#             print("Warning: Empty response body")
-#             return None
-
-#         try:
-#             json_body = json.loads(body)  # Try parsing as JSON
-#             print(json.dumps(json_body))
-#         except ValueError as e:
-#             print("Error parsing JSON:", e)
-#             print("Raw response body:", body)  # Print full response for debugging
-#             return None
-
-#     except Exception as e:
-#         print(f"API request failed: {e}")
-#         return None
-    
-# def api_get(params=None):
-#     """
-#     Make a GET request to the API.
-
-#     Args:
-#         params (dict): Dictionary of query parameters
-
-#     Returns:
-#         dict or None: Parsed JSON response or None if request failed
-#     """
-#     return _make_api_request("GET", params)
-
-# def api_post(params=None):
-#     """
-#     Make a POST request to the API.
-
-#     Args:
-#         params (dict): Dictionary of query parameters
-
-#     Returns:
-#         dict or None: Parsed JSON response or None if request failed
-#     """
-#     return _make_api_request("POST", params)
-
-# def api_put(params=None):
-#     """
-#     Make a PUT request to the API.
-
-#     Args:
-#         params (dict): Dictionary of query parameters
-
-#     Returns:
-#         dict or None: Parsed JSON response or None if request failed
-#     """
-#     return _make_api_request("PUT", params)
-
-# def main():
-#     """Main function to connect to WiFi and test API calls."""
-#     if not connect_wifi():
-#         return
-
-#     mac_address = ubinascii.hexlify(network.WLAN(network.STA_IF).config('mac')).decode()
-
-#     print("\n1. Testing Get Profile:")
-#     make_api_request("get_profile", mac_address)
-
-# if __name__ == "__main__":
-#     main()
-
-# import network
-# import time
-
-# wlan = network.WLAN(network.STA_IF)
-# wlan.active(True)
-# wlan.connect("bucknell_iot", "")  # Your network credentials
-
-# # Wait for connection
-# timeout = 10
-# while timeout > 0:
-#     if wlan.isconnected():
-#         break
-#     timeout -= 1
-#     print("Waiting for connection...")
-#     time.sleep(1)
-
-# if wlan.isconnected():
-#     print("Connected to WiFi")
-#     print("IP address:", wlan.ifconfig()[0])
-#     # Try a simple DNS lookup
-#     import socket
-#     try:
-#         addr_info = socket.getaddrinfo("ec2-3-14-141-222.us-east-2.compute.amazonaws.com", 80)[-1][-1]
-#         print("DNS lookup successful:", addr_info)
-#     except Exception as e:
-#         print("DNS lookup failed:", e)
-# else:
-#     print("Failed to connect to WiFi")
-
-import network
-import socket
+# Database.py for ESP32-C6 MicroPython
 import json
 import time
+import network
+import socket
+import gc
 
-# WiFi Configuration
-WIFI_SSID = "bucknell_iot"
-WIFI_PASSWORD = ""
-API_HOST = "ec2-3-14-141-222.us-east-2.compute.amazonaws.com"
-API_PATH = "/api/box.php"
-API_TOKEN = "290900415d2d7aac80229cdea4f90fbf"
+# Enum for card types
+class CardType:
+    INVALID_CARD = -1
+    SHUTDOWN_CARD = 1
+    PROXY_CARD = 2
+    TRAINING_CARD = 3
+    USER_CARD = 4
 
-def connect_wifi():
-    """Connects to WiFi and prints the IP and MAC address."""
-    print("Connecting to WiFi...")
-    wlan = network.WLAN(network.STA_IF)
-    wlan.active(True)
-   
-    try:
-        wlan.connect(WIFI_SSID, WIFI_PASSWORD)
-       
-        # Wait for connection with timeout
-        max_wait = 10
-        while max_wait > 0:
-            if wlan.isconnected():
-                break
-            max_wait -= 1
-            print("Waiting for connection...")
-            time.sleep(1)
-           
-        if wlan.isconnected():
-            print(f"Connected! IP: {wlan.ifconfig()[0]}")
-            mac_bytes = wlan.config('mac')
-            mac_hex = ''.join(['{:02x}'.format(b) for b in mac_bytes])
-            print(f"Device MAC address: {mac_hex}")
-            return True
-        else:
-            print("Could not connect to WiFi")
-            return False
-    except Exception as e:
-        print(f"WiFi connection failed: {e}")
-        return False
+class Database:
+    '''
+    A high level interface to the backend database using HTTP API
+    '''
 
-def api_get(params=None):
-    """
-    Make a GET request to the API.
+    def __init__(self, settings):
+        '''
+        Initialize API connection settings
 
-    Args:
-        params (dict): Dictionary of query parameters
+        @param (dict)settings - a dictionary describing the API connection details
+        '''
+        # Ensure minimum configuration
+        if (not 'website' in settings or 
+            not 'api' in settings or 
+            not 'bearer_token' in settings):
+            raise ValueError("API configuration must include 'website', 'api', and 'bearer_token'")
 
-    Returns:
-        dict or None: Parsed JSON response or None if request failed
-    """
-    return _make_api_request("GET", params)
+        # Store connection settings
+        self.api_host = settings['website']
+        self.api_path = f"/api/{settings['api']}"
+        self.api_token = settings['bearer_token']
+        
+        # State variables needed for authorization logic
+        self.requires_training = True
+        self.requires_payment = False
 
-def api_post(params=None):
-    """
-    Make a POST request to the API.
+    def _make_api_request(self, method, params=None):
+        """
+        Makes an HTTP request to the API.
 
-    Args:
-        params (dict): Dictionary of query parameters
+        Args:
+            method (str): HTTP method (GET, POST, PUT)
+            params (dict): Dictionary of query parameters
 
-    Returns:
-        dict or None: Parsed JSON response or None if request failed
-    """
-    return _make_api_request("POST", params)
-
-def api_put(params=None):
-    """
-    Make a PUT request to the API.
-
-    Args:
-        params (dict): Dictionary of query parameters
-
-    Returns:
-        dict or None: Parsed JSON response or None if request failed
-    """
-    return _make_api_request("PUT", params)
-
-def _make_api_request(method, params=None):
-    """
-    Makes an HTTP request to the API.
-
-    Args:
-        method (str): HTTP method (GET, POST, PUT)
-        params (dict): Dictionary of query parameters
-
-    Returns:
-        dict or None: Parsed JSON response or None if request failed
-    """
-    try:
-        # Construct the query string
-        query_string = ""
-        if params:
-            query_parts = []
-            for key, value in params.items():
-                query_parts.append(f"{key}={value}")
-            query_string = "?" + "&".join(query_parts)
-
-        # Construct the full URL path
-        url_path = f"{API_PATH}{query_string}"
-
-        # Create socket
-        addr_info = socket.getaddrinfo(API_HOST, 80, 0, socket.SOCK_STREAM)
-        addr = addr_info[0][-1]  # Extract (IP, port)
-       
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(10)  # 10-second timeout
-
-        print(f"Connecting to {API_HOST} ({addr})...")
-        sock.connect(addr)  # Connect to API server
-
-        # Prepare HTTP request - using string concatenation instead of f-strings
-        request = (
-            method + " " + url_path + " HTTP/1.1\r\n"
-            "Host: " + API_HOST + "\r\n"
-            "Authorization: Bearer " + API_TOKEN + "\r\n"
-            "Content-Type: application/x-www-form-urlencoded\r\n"
-            "Connection: close\r\n\r\n"
-        )
-
-        print(f"Sending {method} request to: {API_HOST}{url_path}")
-        sock.send(request.encode())
-        print("Request sent successfully")
-
-        # Receive response
-        response = b""
-        while True:
-            data = sock.recv(1024)
-            if not data:
-                break
-            response += data
-
-        # Close socket
-        sock.close()
-
-        # Convert response to string
-        response_str = response.decode()
-
-        # Split headers and body
-        if "\r\n\r\n" in response_str:
-            headers, body = response_str.split("\r\n\r\n", 1)
-        else:
-            headers, body = response_str, ""
-
-        print("\nResponse Headers:")
-        print(headers)
-
-        print("\nResponse Body:")
-        if not body.strip():
-            print("Warning: Empty response body")
-            return None
-
+        Returns:
+            dict or None: Parsed JSON response or None if request failed
+        """
         try:
-            json_body = json.loads(body)  # Try parsing as JSON
-            print(json.dumps(json_body))
-            return json_body
-        except ValueError as e:
-            print("Error parsing JSON:", e)
-            print("Raw response body:", body)
+            # Construct the query string
+            query_string = ""
+            if params:
+                query_parts = []
+                for key, value in params.items():
+                    query_parts.append(f"{key}={value}")
+                query_string = "?" + "&".join(query_parts)
+
+            # Construct the full URL path
+            url_path = f"{self.api_path}{query_string}"
+
+            # Create socket
+            addr_info = socket.getaddrinfo(self.api_host, 80, 0, socket.SOCK_STREAM)
+            addr = addr_info[0][-1]  # Extract (IP, port)
+            
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(15)  # 15-second timeout for longer operations
+
+            # Try to connect with retries
+            max_retries = 3
+            for retry in range(max_retries):
+                try:
+                    sock.connect(addr)
+                    break
+                except OSError as e:
+                    print(f"Connection attempt {retry+1} failed: {e}")
+                    if retry < max_retries - 1:
+                        print("Retrying in 2 seconds...")
+                        time.sleep(2)
+                        # Create a new socket for each retry
+                        sock.close()
+                        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        sock.settimeout(15)
+                    else:
+                        raise
+
+            # Prepare HTTP request
+            request = (
+                method + " " + url_path + " HTTP/1.1\r\n"
+                "Host: " + self.api_host + "\r\n"
+                "Authorization: Bearer " + self.api_token + "\r\n"
+                "Content-Type: application/x-www-form-urlencoded\r\n"
+                "Connection: close\r\n\r\n"
+            )
+
+            print(f"Sending {method} request to: {self.api_host}{url_path}")
+            sock.send(request.encode())
+
+            # Receive response
+            response = b""
+            while True:
+                data = sock.recv(1024)
+                if not data:
+                    break
+                response += data
+
+            # Close socket
+            sock.close()
+
+            # Convert response to string
+            response_str = response.decode()
+
+            # Split headers and body
+            if "\r\n\r\n" in response_str:
+                headers, body = response_str.split("\r\n\r\n", 1)
+            else:
+                headers, body = response_str, ""
+
+            # Free memory - important for microcontrollers
+            gc.collect()
+
+            # Check if body is empty
+            if not body.strip():
+                print("Warning: Empty response body")
+                return None
+
+            try:
+                json_body = json.loads(body)  # Try parsing as JSON
+                return json_body
+            except ValueError as e:
+                print("Error parsing JSON:", e)
+                print("Raw response body:", body)
+                return None
+
+        except Exception as e:
+            print(f"API request failed: {e}")
             return None
 
-    except Exception as e:
-        print(f"API request failed: {e}")
-        return None
+    def is_registered(self, mac_address):
+        '''
+        Determine if the portal box identified by the MAC address has been
+        registered with the database
 
-def get_mac_address():
-    """Returns the MAC address as a hex string."""
-    wlan = network.WLAN(network.STA_IF)
-    mac_bytes = wlan.config('mac')
-    return ''.join(['{:02x}'.format(b) for b in mac_bytes])
+        @param (string)mac_address - the mac_address of the portal box to
+             check registration status of
+        '''
+        print(f"Checking if portal box with Mac Address {mac_address} is registered")
+        params = {
+            "mode": "check_reg",
+            "mac_adr": mac_address
+        }
+        
+        response = self._make_api_request("GET", params)
+        
+        if response is None:
+            print("API error")
+            return -1
+        else:
+            return int(response) if isinstance(response, (int, str)) else -1
 
-def main():
-    """Main function to connect to WiFi and test API calls."""
-    if not connect_wifi():
-        return
+    def register(self, mac_address):
+        '''
+        Register the portal box identified by the MAC address with the database
+        as an out of service device
+        '''
+        params = {
+            "mode": "register",
+            "mac_adr": mac_address
+        }
+        
+        response = self._make_api_request("PUT", params)
+        
+        if response is None:
+            print("API error")
+            return False
+        else:
+            return True
 
-    mac_address = get_mac_address()
-    equipment_id = "2"
-    card_id = "1234"
+    def get_equipment_profile(self, mac_address):
+        '''
+        Discover the equipment profile assigned to the Portal Box in the database
 
-    print("\n1. Testing Get Profile:")
-    # Example GET request
-    card_details = api_get({"mode": "get_card_details", "equipment_id": equipment_id, "card_id": card_id})
-    equipment_profile = api_get({"mode": "get_profile", "mac_adr": mac_address})
-    equipment_name = api_get({"mode": "get_equipment_name", "mac_adr": mac_address, "equipment_id": equipment_id})
+        @return a tuple consisting of: (int)equipment id,
+        (int)equipment type id, (str)equipment type, (int)location id,
+        (str)location, (int)time limit in minutes, (int) allow proxy
+        '''
+        print("Querying database for equipment profile")
+        profile = (-1, -1, None, -1, None, -1, -1)
+        
+        params = {
+            "mode": "get_profile",
+            "mac_adr": mac_address
+        }
+        
+        response = self._make_api_request("GET", params)
+        
+        if response is None:
+            print("API error in get_equipment_profile")
+            self.requires_training = True
+            self.requires_payment = False
+        else:
+            try:
+                response_details = response[0]
+                profile = (
+                    int(response_details["id"]),
+                    int(response_details["type_id"]),
+                    response_details["name"][0],
+                    int(response_details["location_id"]),
+                    response_details["name"][1],
+                    int(response_details["timeout"]),
+                    int(response_details["allow_proxy"])
+                )
+                self.requires_training = int(response_details["requires_training"])
+                self.requires_payment = int(response_details["charge_policy"])
+            except (KeyError, IndexError, TypeError) as e:
+                print(f"Error processing profile data: {e}")
+                
+        return profile
 
-    # Example POST request
-    if card_details and card_details[0].get("user_auth") == 1 and card_details[0].get("user_active") == 1:
-        api_post({"mode": "log_access_attempt", "equipment_id": equipment_id, "card_id": card_id, "successful": "1"})
+    def log_started_status(self, equipment_id):
+        '''
+        Logs that this portal box has started up
 
-    api_post({"mode": "log_access_completion", "equipment_id": equipment_id, "card_id": card_id})
-    reg = api_get({"mode": "check_reg", "mac_adr": mac_address})
-    if reg == 1:
-        print("MAC IS REGISTERED")
-    else:
-        print("MAC NOT REGISTERED!!!!")
-    reg_fail = api_get({"mode": "check_reg", "mac_adr": "000000000000"})
-    if reg_fail == 0:
-        print("MAC CORRECTLY UNREGISTERED")
-    else:
-        print("MAC REGISTERED, NOT SUPPOSED TO BE")
+        @param equipment_id: The ID assigned to the portal box
+        '''
+        print("Logging with the database that this portalbox has started up")
+        
+        params = {
+            "mode": "log_started_status",
+            "equipment_id": equipment_id
+        }
+        
+        response = self._make_api_request("POST", params)
+        
+        if response is None:
+            print("API error in log_started_status")
 
-    api_get({"mode": "get_user", "card_id": card_id})
+    def log_shutdown_status(self, equipment_id, card_id):
+        '''
+        Logs that this portal box is shutting down
 
-    api_post({"mode": "log_shutdown_status", "equipment_id": equipment_id, "card_id": card_id})
+        @param equipment_id: The ID assigned to the portal box
+        @param card_id: The ID read from the card presented by the user use
+            or a falsy value if shutdown is not related to a card
+        '''
+        print("Logging with the database that this box has shutdown")
+        
+        params = {
+            "mode": "log_shutdown_status",
+            "equipment_id": equipment_id,
+            "card_id": card_id
+        }
+        
+        response = self._make_api_request("POST", params)
+        
+        if response is None:
+            print("API error in log_shutdown_status")
 
-    api_post({"mode": "log_started_status", "equipment_id": equipment_id, "card_id": card_id})
+    def log_access_attempt(self, card_id, equipment_id, successful):
+        '''
+        Logs start time for user using a resource.
 
-if __name__ == "__main__":
-    main()
+        @param card_id: The ID read from the card presented by the user
+        @param equipment_id: The ID assigned to the portal box
+        @param successful: If login was successful (user is authorized)
+        '''
+        print("Logging access attempt with database")
+        
+        params = {
+            "mode": "log_access_attempt",
+            "equipment_id": equipment_id,
+            "card_id": card_id,
+            "successful": int(successful)
+        }
+        
+        response = self._make_api_request("POST", params)
+        
+        if response is None:
+            print("API error in log_access_attempt")
+
+    def log_access_completion(self, card_id, equipment_id):
+        '''
+        Logs end time for user using a resource.
+
+        @param card_id: The ID read from the card presented by the user
+        @param equipment_id: The ID assigned to the portal box
+        '''
+        print("Logging access completion with database")
+        
+        params = {
+            "mode": "log_access_completion",
+            "equipment_id": equipment_id,
+            "card_id": card_id
+        }
+        
+        response = self._make_api_request("POST", params)
+        
+        if response is None:
+            print("API error in log_access_completion")
+
+    def get_card_details(self, card_id, equipment_type_id):
+        '''
+        This function gets the pertinent details about a card from the database
+        
+        Returns: {
+            "user_is_authorized": true/false //Whether or not the user is authorized for this equipment
+            "card_type": CardType //The type of card
+            "user_authority_level": int //Returns if the user is a normal user, trainer, or admin
+        }
+        '''
+        print(f"Getting card details for card ID {card_id}")
+        
+        params = {
+            "mode": "get_card_details",
+            "card_id": card_id,
+            "equipment_id": equipment_type_id
+        }
+        
+        response = self._make_api_request("GET", params)
+        
+        if response is None or not isinstance(response, list) or len(response) == 0:
+            print("API error in get_card_details")
+            details = {
+                "user_is_authorized": False,
+                "card_type": CardType.INVALID_CARD,
+                "user_authority_level": 0
+            }
+        else:
+            response_details = response[0]
+            
+            # Handle None values
+            user_role = response_details.get("user_role", 0)
+            if user_role is None:
+                user_role = 0
+                
+            card_type = response_details.get("card_type", -1)
+            if card_type is None:
+                card_type = -1
+                
+            details = {
+                "user_is_authorized": self.is_user_authorized_for_equipment_type(response_details),
+                "card_type": card_type,
+                "user_authority_level": int(user_role)
+            }
+            
+        return details
+
+    def is_user_authorized_for_equipment_type(self, card_details):
+        '''
+        Check if card holder is authorized for the equipment type
+        '''
+        is_authorized = False
+        
+        try:
+            balance = float(card_details.get("user_balance", 0))
+            user_auth = int(card_details.get("user_auth", 0))
+            user_active = card_details.get("user_active")
+            
+            if user_active is None or int(user_active) != 1:
+                return False
+                
+            if self.requires_training and self.requires_payment:
+                is_authorized = (balance > 0.0 and user_auth)
+            elif self.requires_training and not self.requires_payment:
+                is_authorized = (user_auth == 1)
+            elif not self.requires_training and self.requires_payment:
+                is_authorized = (balance > 0.0)
+            else:
+                is_authorized = True
+                
+        except (ValueError, TypeError) as e:
+            print(f"Error determining authorization: {e}")
+            
+        return is_authorized
+
+    def get_user(self, card_id):
+        '''
+        Get details for the user identified by (card) id
+
+        @return, a tuple of name and email
+        '''
+        user = (None, None)
+        
+        print(f"Getting user information from card ID: {card_id}")
+        
+        params = {
+            "mode": "get_user",
+            "card_id": card_id
+        }
+        
+        response = self._make_api_request("GET", params)
+        
+        if response is None or not isinstance(response, list) or len(response) == 0:
+            print("API error in get_user")
+        else:
+            response_details = response[0]
+            user = (
+                response_details.get("name", "Unknown User"),
+                response_details.get("email", "unknown@example.com")
+            )
+            
+        return user
+
+    def get_equipment_name(self, equipment_id):
+        '''
+        Gets the name of the equipment given the equipment id 
+
+        @return, a string of the name 
+        '''
+        print("Getting equipment name")
+        
+        params = {
+            "mode": "get_equipment_name",
+            "equipment_id": equipment_id
+        }
+        
+        response = self._make_api_request("GET", params)
+        
+        if response is None or not isinstance(response, list) or len(response) == 0:
+            print("API error in get_equipment_name")
+            return "Unknown"
+        else:
+            return response[0].get("name", "Unknown")
+
+    def record_ip(self, equipment_id, ip):
+        '''
+        Records the IP address of the equipment
+        '''
+        print(f"Recording IP address {ip} for equipment {equipment_id}")
+        
+        params = {
+            "mode": "record_ip",
+            "equipment_id": equipment_id,
+            "ip_address": ip
+        }
+        
+        response = self._make_api_request("POST", params)
+        
+        if response is None:
+            print("API error in record_ip")
+            return False
+        return True
