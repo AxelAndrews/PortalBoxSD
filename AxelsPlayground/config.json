@@ -28,6 +28,6 @@
       "led_type": "NEOPIXEL"
     },
     "user_exp": {
-      "grace_period": 2
+      "grace_period": 10
     }
   }

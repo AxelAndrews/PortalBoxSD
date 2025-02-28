@@ -1,9 +1,12 @@
 # PortalBox.py for MicroPython on ESP32
 # Hardware abstraction layer for managing peripherals
 
-from machine import Pin, PWM, SPI, SoftSPI
+from machine import Pin, PWM, SPI, SoftSPI, I2C
+# In the imports section, add:
+from Button import KeypadButton
 import time
 import gc
+from LCD_lib import I2cLcd
 
 # Import local modules
 from AbstractController import BLACK
@@ -13,12 +16,21 @@ from BuzzerController import BuzzerController
 from MFRC522 import MFRC522
 
 # Pin definitions for ESP32
-INTERLOCK_PIN = 16       # GPIO16
-BUTTON_LED_PIN = 17      # GPIO17
-BUZZER_PIN = 18          # GPIO18
-BUTTON_PIN = 19          # GPIO19
+INTERLOCK_PIN = 9       # GPIO16
+#BUTTON_LED_PIN = 17      # GPIO17
+BUZZER_PIN = 6          # GPIO18
+BUTTON_PIN = 20          # GPIO19
 RELAY_PIN = 7           # GPIO21
-RFID_RST_PIN = 22        # GPIO22
+#RFID_RST_PIN = 22        # GPIO22
+NEOPIXEL_PIN = 13
+ROW_PIN = 17  # Row 1 pin
+COL_PIN = 16  # Column 1 pin
+
+# The MCP23008 has a jumper selectable address: 0x20 - 0x27
+LCD_I2C_ADDR = 0x20
+BUS = 0
+LCD_SDA = Pin(18, Pin.PULL_UP)
+LCD_SCL = Pin(19, Pin.PULL_UP)
 
 # RFID SPI pins
 sda = Pin(3, Pin.OUT)
@@ -42,9 +54,13 @@ class PortalBox:
         print("Setting up RFID PINS")
         self.interlock_pin = Pin(INTERLOCK_PIN, Pin.OUT)
         self.relay_pin = Pin(RELAY_PIN, Pin.OUT)
-        self.button_led_pin = Pin(BUTTON_LED_PIN, Pin.OUT)
-        self.button_pin = Pin(BUTTON_PIN, Pin.IN, Pin.PULL_DOWN)
-        self.rfid_rst_pin = Pin(RFID_RST_PIN, Pin.OUT)
+        self.keypad_button = KeypadButton(ROW_PIN, COL_PIN)
+
+        # Set up I2C for LCD
+        self.i2c = I2C(BUS, sda=LCD_SDA, scl=LCD_SCL, freq = 400000)
+        self.lcd = I2cLcd(self.i2c, LCD_I2C_ADDR, 2, 16)
+        print("LCD initialized")
+
         
         # Button press tracking
         # self.button_last_state = False
@@ -96,6 +112,14 @@ class PortalBox:
         self.outlist = [0] * 64  # RFID register tracking
         self.flash_signal = False
         self.flash_task = None
+
+    def write_to_lcd(self, message):
+        '''
+        Write a message to the LCD display
+        @param message - string to display
+        '''
+        self.lcd.clear()
+        self.lcd.putstr(message)
         
     def set_equipment_power_on(self, state):
         '''
@@ -113,32 +137,21 @@ class PortalBox:
             self.relay_pin.off()
             self.interlock_pin.off()
     
+    # In the get_button_state method:
     def get_button_state(self):
         '''
         Determine the current button state
+        Returns True if the "1" key on the keypad is pressed
         '''
-        # return bool(self.button_pin.value())
-        return bool(0)
+        return self.keypad_button.is_pressed()
     
+    # In the has_button_been_pressed method:
     def has_button_been_pressed(self):
         '''
-        Check if button has been pressed since the last call
+        Check if the "1" key on the keypad has been pressed since the last call
         Implements simple debouncing and edge detection
         '''
-        # current_state = self.get_button_state()
-        # current_time = time.ticks_ms()
-        
-        # # Debounce - only check if enough time has passed
-        # if time.ticks_diff(current_time, self.button_last_check) > 50:  # 50ms debounce
-        #     if current_state and not self.button_last_state:
-        #         self.button_last_state = current_state
-        #         self.button_last_check = current_time
-        #         return True
-            
-        #     self.button_last_state = current_state
-        #     self.button_last_check = current_time
-        
-        return True
+        return self.keypad_button.was_pressed()
     
     def read_RFID_card(self):
         '''
@@ -306,6 +319,6 @@ class PortalBox:
         # Turn off all pins
         self.relay_pin.off()
         self.interlock_pin.off()
-        self.button_led_pin.off()
+        #self.button_led_pin.off()
         
         print("Buzzer, display, and GPIO should be turned off")

@@ -174,7 +174,7 @@ class PortalBoxApplication():
                 "user_is_authorized": details["user_is_authorized"],              
                 "card_type": details["card_type"],
                 "user_authority_level": details["user_authority_level"],
-                "button_pressed": False #self.box.has_button_been_pressed()
+                "button_pressed": self.box.has_button_been_pressed()
             }
 
             # Log the card reading with the card type and ID
@@ -187,13 +187,13 @@ class PortalBoxApplication():
                 "user_is_authorized": False,
                 "card_type": CardType.INVALID_CARD,
                 "user_authority_level": 0,
-                "button_pressed": False #self.box.has_button_been_pressed()
+                "button_pressed": self.box.has_button_been_pressed()
             }
         # Else just use the old data and update the button
         # i.e., if there is a card, but it's the same as before
         else:
             new_input_data = dict(old_input_data)  # Create a copy of the dictionary
-            new_input_data["button_pressed"] = False #self.box.has_button_been_pressed()
+            new_input_data["button_pressed"] = self.box.has_button_been_pressed()
 
         print(f"New input data: {new_input_data}")
         return new_input_data

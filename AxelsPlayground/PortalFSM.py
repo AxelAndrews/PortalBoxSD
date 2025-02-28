@@ -44,7 +44,7 @@ class State(object):
         self.timeout_start = datetime.now()
         self.grace_start = datetime.now()
         self.timeout_delta = timedelta(0)
-        self.grace_delta = timedelta(seconds=2)
+        self.grace_delta = timedelta(seconds=10)
         self.on_enter(input_data)
         self.flash_rate = 3
 
@@ -62,9 +62,21 @@ class State(object):
 
     def on_enter(self, input_data):
         """
-        A default on_enter() method, just logs which state is being entered
+        A default on_enter() method that centers the state name on a 16x2 LCD
         """
-        print(f"Entering state {self.__class__.__name__}")
+        state_name = self.__class__.__name__
+        print(f"Entering state {state_name}")
+        
+        # Determine centering for a 16-character wide LCD
+        if len(state_name) > 16:
+            # Truncate if too long
+            display_name = state_name[:16]
+        else:
+            # Center the text
+            padding = (16 - len(state_name)) // 2
+            display_name = " " * padding + state_name
+        
+        self.service.box.write_to_lcd(display_name)
 
     def timeout_expired(self):
         """
@@ -116,12 +128,13 @@ class Setup(State):
                 return next_state
             except Exception as e:
                 print(f"Setup failed: {e}")
-                self.next_state(Shutdown, input_data)
-                return True
+                next_state = self.next_state(Shutdown, input_data)
+                return next_state
         return None
 
     def on_enter(self, input_data):
-        # Do everything related to setup, if anything fails and returns an exception, then go to Shutdown
+        super().on_enter(input_data)
+        #self.service.box.write_to_lcd("Setup")
         print("Starting setup")
         # self.service.box.set_display_color(self.service.settings["display"]["setup_color"])
         try:
@@ -131,40 +144,20 @@ class Setup(State):
                 print(f"Database connection failed: {e}")
                 raise e
 
-            # self.service.box.set_display_color(self.service.settings["display"]["setup_color_db"])
-
-            # try:
-            #     self.service.connect_to_email()
-            # except Exception as e:
-            #     print(f"Email connection failed: {e}")
-            #     raise e
-
-            # self.service.box.set_display_color(self.service.settings["display"]["setup_color_email"])
-
             try:
                 self.service.get_equipment_role()
             except Exception as e:
                 print(f"Getting equipment role failed: {e}")
                 raise e
 
-            # try:
-            #     self.service.record_ip()
-            # except Exception as e:
-            #     print(f"Recording IP failed: {e}")
-            #     raise e
-
-            # self.service.box.set_display_color(self.service.settings["display"]["setup_color_role"])
-
-            self.timeout_delta = 100
-            print("Checkpoint 1")
-            #timedelta(minutes=self.service.timeout_minutes)
+            self.timeout_delta = timedelta(minutes=self.service.timeout_minutes)
             
             # Get grace period from settings, with a default of 2 seconds
-            grace_period = 2
+            grace_period = 10
             if "user_exp" in self.service.settings and "grace_period" in self.service.settings["user_exp"]:
                 try:
-                    print("Trying Grace Period")
                     grace_period = int(self.service.settings["user_exp"]["grace_period"])
+                    print(f"Grace period set to {grace_period} seconds")
                 except ValueError:
                     pass
                     
@@ -172,26 +165,14 @@ class Setup(State):
             self.allow_proxy = self.service.allow_proxy
             
             # Get flash rate from settings, with a default of 3
-            flash_rate = 3
-            # if "display" in self.service.settings and "flash_rate" in self.service.settings["display"]:
-            #     try:
-            #         flash_rate = int(self.service.settings["display"]["flash_rate"])
-            #     except ValueError:
-            #         pass
-                    
-            self.flash_rate = flash_rate
-            
-            self.next_state(IdleNoCard, input_data)
-            print('NEW STATE!!!!!!!!!!!')
-            # self.service.box.buzz_tone(500, 0.2)
+            self.flash_rate = 3
             
             # Free up memory after setup is complete
             gc.collect()
-            print("END OF SETUP!!!!!!!!!!!!!!!")
+            print("Setup completed successfully")
             
         except Exception as e:
             print(f"Unable to complete setup, exception raised: {e}")
-            self.next_state(Shutdown, input_data)
             raise e
 
 class Shutdown(State):
@@ -199,8 +180,17 @@ class Shutdown(State):
     Shuts down the box
     """
     def __call__(self, input_data):
+        print("Shutdown state called, powering off equipment")
         self.service.box.set_equipment_power_on(False)
-        self.service.shutdown(input_data["card_id"])  # logging the shutdown is done in this method
+        self.service.shutdown(input_data["card_id"])
+        return None
+
+    def on_enter(self, input_data):
+        super().on_enter(input_data)
+        #self.service.box.write_to_lcd("Shutdown")
+        print("Entering shutdown state")
+        self.service.box.set_equipment_power_on(False)
+        self.service.shutdown(input_data["card_id"])
 
 class IdleNoCard(State):
     """
@@ -209,10 +199,13 @@ class IdleNoCard(State):
     def __call__(self, input_data):
         if input_data["card_id"] > 0:
             return self.next_state(IdleUnknownCard, input_data)
-        else: return None
+        return None
 
     def on_enter(self, input_data):
-        print("In IDLENOCARD")
+        super().on_enter(input_data)
+        #self.service.box.write_to_lcd("IdleNoCard")
+        print("In IDLENOCARD - waiting for card input")
+        # self.service.box.sleep_display()
 
 class AccessComplete(State):
     """
@@ -220,9 +213,12 @@ class AccessComplete(State):
     the power to the machine
     """
     def __call__(self, input_data):
-        pass
+        # The call should immediately transition to IdleNoCard after cleanup
+        return self.next_state(IdleNoCard, input_data)
 
     def on_enter(self, input_data):
+        super().on_enter(input_data)
+        #self.service.box.write_to_lcd("AccessComplete")
         print("Usage complete, logging usage and turning off machine")
         self.service.db.log_access_completion(self.auth_user_id, self.service.equipment_id)
         self.service.box.set_equipment_power_on(False)
@@ -230,7 +226,6 @@ class AccessComplete(State):
         self.training_id = 0
         self.auth_user_id = 0
         self.user_authority_level = 0
-        self.next_state(IdleNoCard, input_data)
 
 class IdleUnknownCard(State):
     """
@@ -247,11 +242,11 @@ class IdleUnknownCard(State):
         # Check if the user is authorized, regardless of card type
         elif input_data["user_is_authorized"]:
             # If it's a user card, go to normal running state
-            if input_data["card_type"] == 3:
+            if input_data["card_type"] == CardType.USER_CARD:
                 print(f"Authorized user card, transitioning to RunningAuthUser")
                 return self.next_state(RunningAuthUser, input_data)
             # If it's a training card and authorized, handle it properly
-            elif input_data["card_type"] == 2:
+            elif input_data["card_type"] == CardType.TRAINING_CARD:
                 print(f"Authorized training card, transitioning to RunningAuthUser")
                 return self.next_state(RunningAuthUser, input_data)
             # If it's a proxy card and authorized, handle it properly
@@ -267,9 +262,9 @@ class IdleUnknownCard(State):
             return self.next_state(IdleUnauthCard, input_data)
 
     def on_enter(self, input_data):
+        super().on_enter(input_data)
+        #self.service.box.write_to_lcd("IdleUnknownCard")
         print(f"Entering IdleUnknownCard state. Card ID: {input_data['card_id']}, Card Type: {input_data['card_type']}")
-        # The on_enter method should only handle initialization logic for the state,
-        # not state transitions
 
 class RunningUnknownCard(State):
     """
@@ -288,16 +283,13 @@ class RunningUnknownCard(State):
             # If the machine allows proxy cards then go into proxy mode
             if self.allow_proxy == 1:
                 return self.next_state(RunningProxyCard, input_data)
-                #self.service.box.stop_buzzer(stop_beeping=True)
             # Otherwise go into a grace period 
             else:
                 return self.next_state(RunningUnauthCard, input_data)
-                #self.service.box.stop_buzzer(stop_beeping=True)
 
         # If its the same user as before then just go back to auth user
         elif input_data["card_id"] == self.auth_user_id:
             return self.next_state(RunningAuthUser, input_data)
-            #self.service.box.stop_buzzer(stop_beeping=True)
 
         # User card, AND
         # The box was initially authorized by a trainer or admin AND
@@ -312,17 +304,21 @@ class RunningUnknownCard(State):
             not input_data["user_is_authorized"]
         ):
             return self.next_state(RunningTrainingCard, input_data)
-            #self.service.box.stop_buzzer(stop_beeping=True)
 
         elif self.grace_expired():
             print("Exiting Grace period because the grace period expired")
             return self.next_state(AccessComplete, input_data)
-            #self.service.box.stop_buzzer(stop_beeping=True)
 
         if input_data["button_pressed"]:
             print("Exiting Grace period because button was pressed")
             return self.next_state(AccessComplete, input_data)
-            #self.service.box.stop_buzzer(stop_beeping=True)
+            
+        return None
+
+    def on_enter(self, input_data):
+        super().on_enter(input_data)
+        #self.service.box.write_to_lcd("RunningUnknownCard")
+        print("Card detected during grace period")
 
 class RunningAuthUser(State):
     """
@@ -334,15 +330,19 @@ class RunningAuthUser(State):
 
         if self.timeout_expired():
             return self.next_state(RunningTimeout, input_data)
+            
+        return None
 
     def on_enter(self, input_data):
+        super().on_enter(input_data)
+        #self.service.box.write_to_lcd("RunningAuthUser")
         print("Authorized card in box, turning machine on and logging access")
         self.timeout_start = datetime.now()
         self.proxy_id = 0
         self.training_id = 0
         self.service.box.set_equipment_power_on(True)
         # self.service.box.set_display_color(self.service.settings["display"]["auth_color"])
-        #self.service.box.beep_once()
+        # self.service.box.beep_once()
 
         # If the card is new ie, not coming from a timeout then don't log this as a new session
         if self.auth_user_id != input_data["card_id"]:
@@ -357,10 +357,14 @@ class IdleUnauthCard(State):
     """
     def __call__(self, input_data):
         if input_data["card_id"] <= 0:
-            self.next_state(IdleNoCard, input_data)
+            return self.next_state(IdleNoCard, input_data)
+        return None
 
     def on_enter(self, input_data):
-        #self.service.box.beep_once()
+        super().on_enter(input_data)
+        #self.service.box.write_to_lcd("IdleUnauthCard")
+        print("Unauthorized card detected, turning off equipment")
+        # self.service.box.beep_once()
         self.service.box.set_equipment_power_on(False)
         # self.service.box.set_display_color(self.service.settings["display"]["unauth_color"])
         self.service.db.log_access_attempt(input_data["card_id"], self.service.equipment_id, False)
@@ -373,20 +377,22 @@ class RunningNoCard(State):
     def __call__(self, input_data):
         # Card detected
         if input_data["card_id"] > 0 and input_data["card_type"] != CardType.INVALID_CARD:
-            self.next_state(RunningUnknownCard, input_data)
+            return self.next_state(RunningUnknownCard, input_data)
 
         if self.grace_expired():
             print("Exiting Grace period because the grace period expired")
-            self.next_state(AccessComplete, input_data)
-            self.service.box.stop_buzzer(stop_beeping=True)
+            return self.next_state(AccessComplete, input_data)
                 
         if input_data["button_pressed"]:
             print("Exiting Grace period because button was pressed")
-            self.next_state(AccessComplete, input_data)
-            self.service.box.stop_buzzer(stop_beeping=True)
+            return self.next_state(AccessComplete, input_data)
+            
+        return None
 
     def on_enter(self, input_data):
-        print("Grace period started")
+        super().on_enter(input_data)
+        #self.service.box.write_to_lcd("RunningNoCard")
+        print("Grace period started - card removed")
         self.grace_start = datetime.now()
         # self.service.box.flash_display(
         #     self.service.settings["display"]["no_card_grace_color"],
@@ -394,11 +400,11 @@ class RunningNoCard(State):
         #     int(self.grace_delta.total_seconds() * self.flash_rate)
         # )
         
-        self.service.box.start_beeping(
-            800,
-            int(self.grace_delta.total_seconds() * 1000),
-            int(self.grace_delta.total_seconds() * self.flash_rate)
-        )
+        # self.service.box.start_beeping(
+        #     800,
+        #     int(self.grace_delta.total_seconds() * 1000),
+        #     int(self.grace_delta.total_seconds() * self.flash_rate)
+        # )
 
 class RunningUnauthCard(State):
     """
@@ -411,20 +417,21 @@ class RunningUnauthCard(State):
             input_data["card_id"] > 0 and
             input_data["card_id"] == self.auth_user_id
         ):
-            self.next_state(RunningUnknownCard, input_data)
-            self.service.box.stop_buzzer(stop_beeping=True)
+            return self.next_state(RunningUnknownCard, input_data)
 
         if self.grace_expired():
             print("Exiting Running Unauthorized Card because the grace period expired")
-            self.next_state(AccessComplete, input_data)
-            self.service.box.stop_buzzer(stop_beeping=True)
+            return self.next_state(AccessComplete, input_data)
                 
         if input_data["button_pressed"]:
             print("Exiting Running Unauthorized Card because button was pressed")
-            self.next_state(AccessComplete, input_data)
-            self.service.box.stop_buzzer(stop_beeping=True)
+            return self.next_state(AccessComplete, input_data)
+            
+        return None
 
     def on_enter(self, input_data):
+        super().on_enter(input_data)
+        #self.service.box.write_to_lcd("RunningAuthCard")
         print("Unauthorized Card grace period started")
         print(f"Card type was {input_data['card_type']}")
         self.grace_start = datetime.now()
@@ -435,11 +442,11 @@ class RunningUnauthCard(State):
         #     int(self.grace_delta.total_seconds() * self.flash_rate)
         # )
         
-        self.service.box.start_beeping(
-            800,
-            int(self.grace_delta.total_seconds() * 1000),
-            int(self.grace_delta.total_seconds() * self.flash_rate)
-        )
+        # self.service.box.start_beeping(
+        #     800,
+        #     int(self.grace_delta.total_seconds() * 1000),
+        #     int(self.grace_delta.total_seconds() * self.flash_rate)
+        # )
 
 class RunningTimeout(State):
     """
@@ -448,19 +455,20 @@ class RunningTimeout(State):
     def __call__(self, input_data):
         # If the button has been pressed, then re-read the card
         if input_data["button_pressed"]:
-            self.next_state(RunningUnknownCard, input_data)
-            self.service.box.stop_buzzer(stop_beeping=True)
+            return self.next_state(RunningUnknownCard, input_data)
             
         # If the card is removed then finish the access attempt
         if input_data["card_id"] <= 0:
-            self.next_state(AccessComplete, input_data)
-            self.service.box.stop_buzzer(stop_beeping=True)
+            return self.next_state(AccessComplete, input_data)
 
         if self.grace_expired():
-            self.next_state(IdleAuthCard, input_data)
-            self.service.box.stop_buzzer(stop_beeping=True)
+            return self.next_state(IdleAuthCard, input_data)
+            
+        return None
 
     def on_enter(self, input_data):
+        super().on_enter(input_data)
+        #self.service.box.write_to_lcd("RunningTimeout")
         print("Machine timeout, grace period started")
         self.grace_start = datetime.now()
         # self.service.box.flash_display(
@@ -469,11 +477,11 @@ class RunningTimeout(State):
         #     int(self.grace_delta.total_seconds() * self.flash_rate)
         # )
         
-        self.service.box.start_beeping(
-            800,
-            int(self.grace_delta.total_seconds() * 1000),
-            int(self.grace_delta.total_seconds() * self.flash_rate)
-        )
+        # self.service.box.start_beeping(
+        #     800,
+        #     int(self.grace_delta.total_seconds() * 1000),
+        #     int(self.grace_delta.total_seconds() * self.flash_rate)
+        # )
 
 class IdleAuthCard(State):
     """
@@ -482,9 +490,13 @@ class IdleAuthCard(State):
     """
     def __call__(self, input_data):
         if input_data["card_id"] <= 0:
-            self.next_state(IdleNoCard, input_data)
+            return self.next_state(IdleNoCard, input_data)
+        return None
 
     def on_enter(self, input_data):
+        super().on_enter(input_data)
+        #self.service.box.write_to_lcd("IdleAuthCard")
+        print("Timeout grace period expired with card still in machine")
         self.service.box.set_equipment_power_on(False)
         self.service.db.log_access_completion(self.auth_user_id, self.service.equipment_id)
         
@@ -508,12 +520,17 @@ class RunningProxyCard(State):
     """
     def __call__(self, input_data):
         if input_data["card_id"] <= 0:
-            self.next_state(RunningNoCard, input_data)
+            return self.next_state(RunningNoCard, input_data)
             
         if self.timeout_expired():
-            self.next_state(RunningTimeout, input_data)
+            return self.next_state(RunningTimeout, input_data)
+            
+        return None
 
     def on_enter(self, input_data):
+        super().on_enter(input_data)
+        #self.service.box.write_to_lcd("RunningProxyCard")
+        print("Running in proxy mode")
         self.timeout_start = datetime.now()
         self.training_id = 0
         
@@ -524,7 +541,7 @@ class RunningProxyCard(State):
         self.proxy_id = input_data["card_id"]
         self.service.box.set_equipment_power_on(True)
         # self.service.box.set_display_color(self.service.settings["display"]["proxy_color"])
-        self.service.box.beep_once()
+        # self.service.box.beep_once()
 
 class RunningTrainingCard(State):
     """
@@ -532,12 +549,17 @@ class RunningTrainingCard(State):
     """
     def __call__(self, input_data):
         if input_data["card_id"] <= 0:
-            self.next_state(RunningNoCard, input_data)
+            return self.next_state(RunningNoCard, input_data)
             
         if self.timeout_expired():
-            self.next_state(RunningTimeout, input_data)
+            return self.next_state(RunningTimeout, input_data)
+            
+        return None
 
     def on_enter(self, input_data):
+        super().on_enter(input_data)
+        #self.service.box.write_to_lcd("RunningTrainingCard")
+        print("Running in training mode")
         self.timeout_start = datetime.now()
         self.proxy_id = 0
         
@@ -549,4 +571,4 @@ class RunningTrainingCard(State):
         
         self.service.box.set_equipment_power_on(True)
         # self.service.box.set_display_color(self.service.settings["display"]["training_color"])
-        self.service.box.beep_once()
+        # self.service.box.beep_once()

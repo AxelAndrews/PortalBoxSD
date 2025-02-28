@@ -16,11 +16,11 @@ np=neopixel.NeoPixel(led,1)
 # spi = SoftSPI(baudrate=100000, polarity=0, phase=0, sck=sck, mosi=mosi, miso=miso)
 
 # sda = Pin(5, Pin.OUT)
-sda = Pin(3, Pin.OUT)
-sck = Pin(2, Pin.OUT)
-mosi = Pin(11, Pin.OUT)
-miso = Pin(10, Pin.OUT)
-spi = SoftSPI(baudrate=100000, polarity=0, phase=0, sck=sck, mosi=mosi, miso=miso)
+# sda = Pin(3, Pin.OUT)
+# sck = Pin(2, Pin.OUT)
+# mosi = Pin(11, Pin.OUT)
+# miso = Pin(10, Pin.OUT)
+# spi = SoftSPI(baudrate=100000, polarity=0, phase=0, sck=sck, mosi=mosi, miso=miso)
 
 def do_read():
     try:
