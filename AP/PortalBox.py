@@ -61,17 +61,17 @@ class PortalBox:
         
         # Set up display
         self.led_type = settings["display"]["led_type"]
-        if self.led_type == "DOTSTARS":
-            print("Creating DotStar display controller")
-            from .display.DotstarController import DotstarController
-            self.display_controller = DotstarController()
-        elif self.led_type == "NEOPIXELS":
-            print("Creating Neopixel display controller")
-            from .display.NeopixelController import NeopixelController
-            self.display_controller = NeopixelController()
-        else:
-            print("No display driver!")
-            self.display_controller = None
+        # if self.led_type == "DOTSTARS":
+        #     print("Creating DotStar display controller")
+        #     from .display.DotstarController import DotstarController
+        #     self.display_controller = DotstarController()
+        # elif self.led_type == "NEOPIXELS":
+        #     print("Creating Neopixel display controller")
+        #     from .display.NeopixelController import NeopixelController
+        #     self.display_controller = NeopixelController()
+        # else:
+        #     print("No display driver!")
+        #     self.display_controller = None
         
         # Get buzzer settings
         self.buzzer_enabled = True
