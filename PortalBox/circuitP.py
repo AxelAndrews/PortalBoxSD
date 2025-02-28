@@ -9,13 +9,30 @@ API_HOST = "ec2-3-14-141-222.us-east-2.compute.amazonaws.com"
 API_PATH = "/api/box.php"
 API_TOKEN = "290900415d2d7aac80229cdea4f90fbf"
 
+# def connect_wifi():
+#     """Connects to WiFi and prints the IP and MAC address."""
+#     print("Connecting to WiFi...")
+#     try:
+#         wifi.radio.connect(WIFI_SSID, WIFI_PASSWORD)
+#         print(f"Connected! IP: {wifi.radio.ipv4_address}")
+#         print(f"Device MAC address: {wifi.radio.mac_address.hex()}")
+#         return True
+#     except Exception as e:
+#         print(f"WiFi connection failed: {e}")
+#         return False
+import network
+
 def connect_wifi():
     """Connects to WiFi and prints the IP and MAC address."""
     print("Connecting to WiFi...")
     try:
-        wifi.radio.connect(WIFI_SSID, WIFI_PASSWORD)
-        print(f"Connected! IP: {wifi.radio.ipv4_address}")
-        print(f"Device MAC address: {wifi.radio.mac_address.hex()}")
+        wlan = network.WLAN(network.STA_IF)
+        wlan.active(True)
+        wlan.connect(WIFI_SSID, WIFI_PASSWORD)
+        while not wlan.isconnected():
+            pass
+        print(f"Connected! IP: {wlan.ifconfig()[0]}")
+        print(f"Device MAC address: {wlan.config('mac')}")
         return True
     except Exception as e:
         print(f"WiFi connection failed: {e}")

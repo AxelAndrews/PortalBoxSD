@@ -1,26 +1,26 @@
-import network #REQUIRES A ESP32 TO BE CONNECTED ELSE AN ERROR WILL OCCUR
+import network
 import time
 import neopixel
 from machine import Pin
 # import datetime
 from portalBoxFSM import State
-# import gspread
-# from google.oauth2.service_account import Credentials
 import os
-
+from Database import Database
 import read as CardReader
 # relay is 7
 # usb is 9
 # buzzer 6
-class Database:
-    pass
 
 class PortalBoxService:
     def __init__(self):
         self.filename="./userData.txt"
         self.debugFile="./debug.txt"
+        
         self.wlan = network.WLAN(network.STA_IF)
         self.wlan.active(True)
+        self.Database=Database(self.wlan)
+        print("1")
+        
         self.currUser=[]
         self.userID=""
         led = Pin(8, Pin.OUT)
@@ -38,6 +38,44 @@ class PortalBoxService:
         self.startUp()
         
     def startUp(self):
+        # print("2")
+        # while not self.wlan.isconnected():
+        #     self.log_to_debug_file("Connecting/Reconnecting to Internet")
+        #     self.enterIdleNoCard()
+        #     self.connectToWifi()
+        # print("3")
+        # mac_address = self.Database.get_mac_address()
+        # equipment_id = "2"
+        # card_id = "1234"
+
+        # print("\n1. Testing Get Profile:")
+        # # Example GET request
+        # card_details = self.Database.api_get({"mode": "get_card_details", "equipment_id": equipment_id, "card_id": card_id})
+        # equipment_profile = self.Database.api_get({"mode": "get_profile", "mac_adr": mac_address})
+        # equipment_name = self.Database.api_get({"mode": "get_equipment_name", "mac_adr": mac_address, "equipment_id": equipment_id})
+
+        # # Example POST request
+        # if card_details and card_details[0].get("user_auth") == 1 and card_details[0].get("user_active") == 1:
+        #     self.Database.api_post({"mode": "log_access_attempt", "equipment_id": equipment_id, "card_id": card_id, "successful": "1"})
+
+        # self.Database.api_post({"mode": "log_access_completion", "equipment_id": equipment_id, "card_id": card_id})
+        # reg = self.Database.api_get({"mode": "check_reg", "mac_adr": mac_address})
+        # if reg == 1:
+        #     print("MAC IS REGISTERED")
+        # else:
+        #     print("MAC NOT REGISTERED!!!!")
+        # reg_fail = self.Database.api_get({"mode": "check_reg", "mac_adr": "000000000000"})
+        # if reg_fail == 0:
+        #     print("MAC CORRECTLY UNREGISTERED")
+        # else:
+        #     print("MAC REGISTERED, NOT SUPPOSED TO BE")
+
+        # self.Database.api_get({"mode": "get_user", "card_id": card_id})
+
+        # self.Database.api_post({"mode": "log_shutdown_status", "equipment_id": equipment_id, "card_id": card_id})
+
+        # self.Database.api_post({"mode": "log_started_status", "equipment_id": equipment_id, "card_id": card_id})
+        
         while True:
             # Ensure connection to the internet
             while not self.wlan.isconnected():
@@ -191,6 +229,18 @@ class PortalBoxService:
                 print(f"Connected successfully in {time.time() - start_time} seconds")
         else:
             print("Already connected to WiFi.") 
+    
+    # def connectToWifi(self):
+    #     """Connects to WiFi and prints the IP and MAC address."""
+    #     print("Connecting to WiFi...")
+    #     try:
+    #         wifi.radio.connect(WIFI_SSID, WIFI_PASSWORD)
+    #         print(f"Connected! IP: {wifi.radio.ipv4_address}")
+    #         print(f"Device MAC address: {wifi.radio.mac_address.hex()}")
+    #         return True
+    #     except Exception as e:
+    #         print(f"WiFi connection failed: {e}")
+    #         return False
 
     def sendDataToSheet(self):
             # Define the scopes and load credentials from the service account file
@@ -236,56 +286,7 @@ class PortalBoxService:
 
             print("Data successfully updated!")
             
-    def sendDebugToSheet(self):
-        """
-        This function reads the 'debug.csv' file and uploads each line to a Google Sheets worksheet, 
-        then clears the worksheet after the upload.
-        """
-        # Define the scopes and load credentials from the service account file
-        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-        creds = Credentials.from_service_account_file("googleSheets.json", scopes=scopes)
-
-        # Authorize the client using the credentials
-        client = gspread.authorize(creds)
-
-        # Define the sheet ID and open the spreadsheet
-        sheet_id = "1SRf5OOWelnRHOKptlMJtqZEZVGsJi7lgn29zlKJ6IEY"
-        workbook = client.open_by_key(sheet_id)
-
-        # Read data from CSV file
-        with open(self.debugFile, mode='r') as file:
-            reader = csv.reader(file)
-            values = list(reader)  # Convert CSV rows to list of lists
-
-        # Get a list of all worksheets in the workbook
-        worksheet_list = map(lambda x: x.title, workbook.worksheets())
-        new_worksheet_name = "debugFile"
-
-        # Check if the worksheet exists, otherwise, create it
-        if new_worksheet_name in worksheet_list:
-            print(f"Found existing worksheet: {new_worksheet_name}")
-            sheet = workbook.worksheet(new_worksheet_name)
-        else:
-            print(f"Creating new worksheet: {new_worksheet_name}")
-            sheet = workbook.add_worksheet(new_worksheet_name, rows=10, cols=10)
-
-        # Clear the existing content in the sheet
-        print("Clearing the sheet...")
-        sheet.clear()
-
-        # Now, we send each row one by one to the sheet
-        print("Sending data to sheet...")
-        for row in values:
-            # Send each line to the sheet one by one starting from A1
-            sheet.append_row(row)
-
-        # Optionally, you can add any other operations like adding formulas or formatting
-        print("Data successfully uploaded to the Google Sheet!")
-
-        # After uploading, you can clear the file or reset it if needed
-        with open(self.debugFile, 'w') as f:
-            f.truncate(0)  # This will clear the contents of the file
-            print(f"{self.debugFile} has been cleared.")
+    
             
     def readDataFromSheet(self):
         # Define the scopes and load credentials from the service account file
@@ -390,61 +391,3 @@ portalInstance = PortalBoxService()
 # print("============TESTING FOR WIFI CONNECTION============")
 # #Need to connect to an ESP32
 # portalInstance.connectToWifi() # Previously Tested Successfully
-
-
-
-            # # FIGURE OUT HOW WE CAN TRANSITION TO THE RUNNING NO CARD STATE
-            # elif self.state==State.RUNNING_AUTHORIZED and self.readCardReader():
-            #     self.state = State.RUNNING_NOCARD
-            #     continue
-            # #Authorized and Looking for a Proxy Card
-            # elif self.state == State.RUNNING_NOCARD:
-            #     ############
-            #     #Start Buzzer
-            #     ############
-            #     userID = self.readCardReader()
-            #     #Check for button press OR a new card is inserted
-            #     #THIS DOES NOT WORK ATM, FIGURE OUT HOW TO STOP THE CARD READER
-            #     while True:
-            #         # If button is pressed then reset to default state and wait for next card
-            #         if self.buttonPress():
-            #             self.state=State.IDLE_NOCARD
-            #             break
-            #         # If a new card is inserted, update the self.currUser
-            #         else:
-            #             userID=self.readCardReader()
-            #             # If it is a proxy card, switch to proxy state
-            #             if self.currUser[1] != 2:
-            #                 self.state==State.RUNNING_PROXY
-            #                 break
-            #             else:
-            #                 break
-            #         time.sleep(2)
-                    
-            # elif self.state == State.RUNNING_TRAINING:
-            #     #Don't worry about this for now
-            #     pass
-                    
-            # #Once we get a UserID OR Proxy Card, verify it
-            # if self.verifyUserID(userID):
-            #     #CardID is in csv
-            #     self.enterIdleAuthWaitingPin()
-            # else:
-            #     self.enterIdleUnauthorized()
-            #     time.sleep(2)
-            #     self.enterIdleNoCard()
-            
-            # #Keep looping until it gets a Pin card
-            # pin = self.readKeypad()
-            # while True:
-            #     pin = self.readKeypad()
-            #     break
-            
-            # if self.verifyUserPin(pin):
-            #     #Verify Pin and Authorize User
-            #     self.enterRunningAuthorized()
-            #     #Deliver Power to Machine/Power Relay
-            # else:
-            #     self.enterIdleUnauthorized()
-            #     time.sleep(2)
-            #     self.enterIdleNoCard()
