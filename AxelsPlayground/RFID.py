@@ -39,4 +39,4 @@ def do_read():
         return -1
     except KeyboardInterrupt:
         print("Bye")
-# print(do_read())
+print(do_read())

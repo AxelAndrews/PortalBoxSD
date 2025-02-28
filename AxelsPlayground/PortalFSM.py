@@ -49,10 +49,16 @@ class State(object):
         self.flash_rate = 3
 
     def next_state(self, cls, input_data):
+        """Transition to a new state by creating a new instance of the state class"""
         print(f"State transition: {self.__class__.__name__} -> {cls.__name__}")
-        self.__class__ = cls
-        print(self.__class__)
-        self.on_enter(input_data)
+        # Create a new instance of the target state class
+        new_state = cls(self.service, input_data)
+        # Copy important state variables to the new instance
+        new_state.auth_user_id = self.auth_user_id
+        new_state.proxy_id = self.proxy_id
+        new_state.training_id = self.training_id
+        new_state.user_authority_level = self.user_authority_level
+        return new_state  # Return the new state instance
 
     def on_enter(self, input_data):
         """
@@ -91,7 +97,28 @@ class Setup(State):
     to shutdown if it can't
     """
     def __call__(self, input_data):
-        pass
+        print("Setup state __call__ method")
+        # First time running through setup
+        if not hasattr(self, 'setup_completed') or not self.setup_completed:
+            print("First time in setup, initializing...")
+            self.setup_completed = True
+            try:
+                self.service.connect_to_database()
+                self.service.get_equipment_role()
+                
+                self.timeout_delta = timedelta(minutes=self.service.timeout_minutes)
+                self.grace_delta = timedelta(seconds=2)
+                self.allow_proxy = self.service.allow_proxy
+                self.flash_rate = 3
+                
+                print("Setup complete, transitioning to IdleNoCard...")
+                next_state = self.next_state(IdleNoCard, input_data)
+                return next_state
+            except Exception as e:
+                print(f"Setup failed: {e}")
+                self.next_state(Shutdown, input_data)
+                return True
+        return None
 
     def on_enter(self, input_data):
         # Do everything related to setup, if anything fails and returns an exception, then go to Shutdown
@@ -181,10 +208,11 @@ class IdleNoCard(State):
     """
     def __call__(self, input_data):
         if input_data["card_id"] > 0:
-            self.next_state(IdleUnknownCard, input_data)
+            return self.next_state(IdleUnknownCard, input_data)
+        else: return None
 
-    # def on_enter(self, input_data):
-        # self.service.box.sleep_display()
+    def on_enter(self, input_data):
+        print("In IDLENOCARD")
 
 class AccessComplete(State):
     """
@@ -209,20 +237,39 @@ class IdleUnknownCard(State):
     A card input has been read, the next state is determined by the card type
     """
     def __call__(self, input_data):
-        pass
-
-    def on_enter(self, input_data):
+        print(f"IdleUnknownCard __call__ with input: card_id={input_data['card_id']}, type={input_data['card_type']}")
+        print(f"user_is_authorized: {input_data['user_is_authorized']}")
+        
         if input_data["card_type"] == CardType.SHUTDOWN_CARD:
             print(f"Inserted a shutdown card, shutting the box down")
-            self.next_state(Shutdown, input_data)
-
-        elif input_data["user_is_authorized"] and input_data["card_type"] == CardType.USER_CARD:
-            print(f"Inserted card with id {input_data['card_id']}, is authorized for this equipment")
-            self.next_state(RunningAuthUser, input_data)
-
+            return self.next_state(Shutdown, input_data)
+        
+        # Check if the user is authorized, regardless of card type
+        elif input_data["user_is_authorized"]:
+            # If it's a user card, go to normal running state
+            if input_data["card_type"] == 3:
+                print(f"Authorized user card, transitioning to RunningAuthUser")
+                return self.next_state(RunningAuthUser, input_data)
+            # If it's a training card and authorized, handle it properly
+            elif input_data["card_type"] == 2:
+                print(f"Authorized training card, transitioning to RunningAuthUser")
+                return self.next_state(RunningAuthUser, input_data)
+            # If it's a proxy card and authorized, handle it properly
+            elif input_data["card_type"] == CardType.PROXY_CARD:
+                print(f"Authorized proxy card, transitioning to RunningProxyCard")
+                return self.next_state(RunningProxyCard, input_data)
+            else:
+                print(f"Authorized card of unknown type: {input_data['card_type']}")
+                return self.next_state(RunningAuthUser, input_data)
+        
         else:
-            print(f"Inserted card with id {input_data['card_id']}, is not authorized for this equipment")
-            self.next_state(IdleUnauthCard, input_data)
+            print(f"Unauthorized card with id {input_data['card_id']}, type: {input_data['card_type']}")
+            return self.next_state(IdleUnauthCard, input_data)
+
+    def on_enter(self, input_data):
+        print(f"Entering IdleUnknownCard state. Card ID: {input_data['card_id']}, Card Type: {input_data['card_type']}")
+        # The on_enter method should only handle initialization logic for the state,
+        # not state transitions
 
 class RunningUnknownCard(State):
     """
@@ -240,17 +287,17 @@ class RunningUnknownCard(State):
         ):
             # If the machine allows proxy cards then go into proxy mode
             if self.allow_proxy == 1:
-                self.next_state(RunningProxyCard, input_data)
-                self.service.box.stop_buzzer(stop_beeping=True)
+                return self.next_state(RunningProxyCard, input_data)
+                #self.service.box.stop_buzzer(stop_beeping=True)
             # Otherwise go into a grace period 
             else:
-                self.next_state(RunningUnauthCard, input_data)
-                self.service.box.stop_buzzer(stop_beeping=True)
+                return self.next_state(RunningUnauthCard, input_data)
+                #self.service.box.stop_buzzer(stop_beeping=True)
 
         # If its the same user as before then just go back to auth user
         elif input_data["card_id"] == self.auth_user_id:
-            self.next_state(RunningAuthUser, input_data)
-            self.service.box.stop_buzzer(stop_beeping=True)
+            return self.next_state(RunningAuthUser, input_data)
+            #self.service.box.stop_buzzer(stop_beeping=True)
 
         # User card, AND
         # The box was initially authorized by a trainer or admin AND
@@ -264,18 +311,18 @@ class RunningUnknownCard(State):
             (self.training_id <= 0 or self.training_id == input_data["card_id"]) and
             not input_data["user_is_authorized"]
         ):
-            self.next_state(RunningTrainingCard, input_data)
-            self.service.box.stop_buzzer(stop_beeping=True)
+            return self.next_state(RunningTrainingCard, input_data)
+            #self.service.box.stop_buzzer(stop_beeping=True)
 
         elif self.grace_expired():
             print("Exiting Grace period because the grace period expired")
-            self.next_state(AccessComplete, input_data)
-            self.service.box.stop_buzzer(stop_beeping=True)
+            return self.next_state(AccessComplete, input_data)
+            #self.service.box.stop_buzzer(stop_beeping=True)
 
         if input_data["button_pressed"]:
             print("Exiting Grace period because button was pressed")
-            self.next_state(AccessComplete, input_data)
-            self.service.box.stop_buzzer(stop_beeping=True)
+            return self.next_state(AccessComplete, input_data)
+            #self.service.box.stop_buzzer(stop_beeping=True)
 
 class RunningAuthUser(State):
     """
@@ -283,10 +330,10 @@ class RunningAuthUser(State):
     """
     def __call__(self, input_data):
         if input_data["card_id"] <= 0:
-            self.next_state(RunningNoCard, input_data)
+            return self.next_state(RunningNoCard, input_data)
 
         if self.timeout_expired():
-            self.next_state(RunningTimeout, input_data)
+            return self.next_state(RunningTimeout, input_data)
 
     def on_enter(self, input_data):
         print("Authorized card in box, turning machine on and logging access")
@@ -295,7 +342,7 @@ class RunningAuthUser(State):
         self.training_id = 0
         self.service.box.set_equipment_power_on(True)
         # self.service.box.set_display_color(self.service.settings["display"]["auth_color"])
-        self.service.box.beep_once()
+        #self.service.box.beep_once()
 
         # If the card is new ie, not coming from a timeout then don't log this as a new session
         if self.auth_user_id != input_data["card_id"]:
@@ -313,7 +360,7 @@ class IdleUnauthCard(State):
             self.next_state(IdleNoCard, input_data)
 
     def on_enter(self, input_data):
-        self.service.box.beep_once()
+        #self.service.box.beep_once()
         self.service.box.set_equipment_power_on(False)
         # self.service.box.set_display_color(self.service.settings["display"]["unauth_color"])
         self.service.db.log_access_attempt(input_data["card_id"], self.service.equipment_id, False)

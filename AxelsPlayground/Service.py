@@ -152,9 +152,12 @@ class PortalBoxApplication():
                 "button_pressed": (boolean) whether or not the button has been
                     pressed since the last time it was checked
         """
+        print("Getting inputs for FSM")
         # Check for a card and get its ID
         card_id = self.box.read_RFID_card()
-
+        print("Tried to read card")
+        print(card_id)
+        card_id = int(card_id, 16) if card_id != -1 else -1
         # If a card is present, and old_input_data showed either no card present, or a different card present
         if(card_id > 0 and card_id != old_input_data["card_id"]):
             print(f"Card with ID: {card_id} read, Getting info from DB")
@@ -171,7 +174,7 @@ class PortalBoxApplication():
                 "user_is_authorized": details["user_is_authorized"],              
                 "card_type": details["card_type"],
                 "user_authority_level": details["user_authority_level"],
-                "button_pressed": self.box.has_button_been_pressed()
+                "button_pressed": False #self.box.has_button_been_pressed()
             }
 
             # Log the card reading with the card type and ID
@@ -184,14 +187,15 @@ class PortalBoxApplication():
                 "user_is_authorized": False,
                 "card_type": CardType.INVALID_CARD,
                 "user_authority_level": 0,
-                "button_pressed": self.box.has_button_been_pressed()
+                "button_pressed": False #self.box.has_button_been_pressed()
             }
         # Else just use the old data and update the button
         # i.e., if there is a card, but it's the same as before
         else:
             new_input_data = dict(old_input_data)  # Create a copy of the dictionary
-            new_input_data["button_pressed"] = self.box.has_button_been_pressed()
+            new_input_data["button_pressed"] = False #self.box.has_button_been_pressed()
 
+        print(f"New input data: {new_input_data}")
         return new_input_data
 
     def get_user_auths(self, card_id):
@@ -240,28 +244,39 @@ def main():
     service = PortalBoxApplication(settings)
 
     # Create finite state machine
-    fsm_instance = fsm.Setup(service, input_data)
-
+    print("Creating FSM initial state")
+    fsm_state = fsm.Setup(service, input_data)
+    
     # Run service
     print("Running the FSM")
     service.running = True
     try:
         while service.running:
+            print("\n---- New loop iteration ----")
+            print(f"Current state: {fsm_state.__class__.__name__}")
+            
+            # Get inputs
             input_data_new = service.get_inputs(input_data)
-            # Update the global input_data
+            print(f"Input data: {input_data_new}")
+            
+            # Update input data dictionary
             for key in input_data:
                 input_data[key] = input_data_new[key]
             
-            fsm_instance(input_data)
+            # Call the state handler which might return a new state
+            print(f"Calling FSM state: {fsm_state.__class__.__name__}")
+            new_state = fsm_state(input_data)
+            if new_state:
+                print(f"State transition occurred")
+                fsm_state = new_state
             
-            # Free memory to avoid potential memory issues
+            print(f"After FSM call, state is: {fsm_state.__class__.__name__}")
+            
+            # Memory management and brief pause
             gc.collect()
-            
-            # Brief sleep to prevent CPU hogging
-            time.sleep(0.01)
-            
+            time.sleep(0.1)
             # If the FSM is in the Shutdown state, then stop running the while loop
-            if fsm_instance.__class__.__name__ == "Shutdown":
+            if fsm_state.__class__.__name__ == "Shutdown":
                 break
     except KeyboardInterrupt:
         print("Keyboard interrupt detected")

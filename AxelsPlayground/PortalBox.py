@@ -1,7 +1,7 @@
 # PortalBox.py for MicroPython on ESP32
 # Hardware abstraction layer for managing peripherals
 
-from machine import Pin, PWM, SPI
+from machine import Pin, PWM, SPI, SoftSPI
 import time
 import gc
 
@@ -21,10 +21,12 @@ RELAY_PIN = 7           # GPIO21
 RFID_RST_PIN = 22        # GPIO22
 
 # RFID SPI pins
-RFID_SPI_SCK = 2         # GPIO5
-RFID_SPI_MOSI = 11       # GPIO23
-RFID_SPI_MISO = 10       # GPIO19
-RFID_SPI_CS = 2          # GPIO2 SDA
+sda = Pin(3, Pin.OUT)
+sck = Pin(2, Pin.OUT)
+mosi = Pin(11, Pin.OUT)
+miso = Pin(10, Pin.OUT)
+spi = SoftSPI(baudrate=100000, polarity=0, phase=0, sck=sck, mosi=mosi, miso=miso)
+
 
 # Default color - black (off)
 BLACK = "00 00 00"
@@ -37,6 +39,7 @@ class PortalBox:
     '''
     def __init__(self, settings):
         # Set up GPIO pins
+        print("Setting up RFID PINS")
         self.interlock_pin = Pin(INTERLOCK_PIN, Pin.OUT)
         self.relay_pin = Pin(RELAY_PIN, Pin.OUT)
         self.button_led_pin = Pin(BUTTON_LED_PIN, Pin.OUT)
@@ -44,23 +47,23 @@ class PortalBox:
         self.rfid_rst_pin = Pin(RFID_RST_PIN, Pin.OUT)
         
         # Button press tracking
-        self.button_last_state = False
-        self.button_last_check = time.ticks_ms()
+        # self.button_last_state = False
+        # self.button_last_check = time.ticks_ms()
         
         # Setup the buzzer controller
         # self.buzzer_controller = BuzzerController(BUZZER_PIN, settings)
         
         # Turn on button LED
-        self.button_led_pin.on()
+        # self.button_led_pin.on()
         
         # Reset the RFID card
-        self.rfid_rst_pin.off()
+        # self.rfid_rst_pin.off()
         
         # Power off equipment
         self.set_equipment_power_on(False)
         
         # Set up display
-        self.led_type = settings["display"]["led_type"]
+        # self.led_type = settings["display"]["led_type"]
         # if self.led_type == "DOTSTARS":
         #     print("Creating DotStar display controller")
         #     from .display.DotstarController import DotstarController
@@ -74,19 +77,19 @@ class PortalBox:
         #     self.display_controller = None
         
         # Get buzzer settings
-        self.buzzer_enabled = True
-        if "buzzer_enabled" in settings["display"]:
-            if settings["display"]["buzzer_enabled"].lower() in ("no", "false", "0"):
-                self.buzzer_enabled = False
+        # self.buzzer_enabled = True
+        # if "buzzer_enabled" in settings["display"]:
+        #     if settings["display"]["buzzer_enabled"].lower() in ("no", "false", "0"):
+        #         self.buzzer_enabled = False
         
         # Init RFID
-        self.rfid_rst_pin.on()  # Deassert reset
+        # self.rfid_rst_pin.on()  # Deassert reset
         time.sleep(0.1)
         
         # Create RFID reader
         print("Creating RFID reader")
-        spi = SPI(1, baudrate=2500000, polarity=0, phase=0, sck=Pin(RFID_SPI_SCK), mosi=Pin(RFID_SPI_MOSI), miso=Pin(RFID_SPI_MISO))
-        self.RFIDReader = MFRC522(spi=spi, cs=Pin(RFID_SPI_CS,Pin.OUT))
+        spi = SPI(1, baudrate=2500000, polarity=0, phase=0, sck=sck, mosi=mosi, miso=miso)
+        self.RFIDReader = MFRC522(spi=spi, cs=sda)
         
         # Setup state
         self.sleepMode = False
@@ -122,52 +125,43 @@ class PortalBox:
         Check if button has been pressed since the last call
         Implements simple debouncing and edge detection
         '''
-        current_state = self.get_button_state()
-        current_time = time.ticks_ms()
+        # current_state = self.get_button_state()
+        # current_time = time.ticks_ms()
         
-        # Debounce - only check if enough time has passed
-        if time.ticks_diff(current_time, self.button_last_check) > 50:  # 50ms debounce
-            if current_state and not self.button_last_state:
-                self.button_last_state = current_state
-                self.button_last_check = current_time
-                return True
+        # # Debounce - only check if enough time has passed
+        # if time.ticks_diff(current_time, self.button_last_check) > 50:  # 50ms debounce
+        #     if current_state and not self.button_last_state:
+        #         self.button_last_state = current_state
+        #         self.button_last_check = current_time
+        #         return True
             
-            self.button_last_state = current_state
-            self.button_last_check = current_time
+        #     self.button_last_state = current_state
+        #     self.button_last_check = current_time
         
-        return False
+        return True
     
     def read_RFID_card(self):
         '''
         @return a positive integer representing the uid from the card on a successful read, -1 otherwise
         '''
-        rfid_hang = False
-        
-        # Check for card ... twice before giving up
-        for attempts in range(2):
-            try:
-                # Request card
-                (status, ataq) = self.RFIDReader.request(self.RFIDReader.REQIDL)
-                
-                if status == self.RFIDReader.OK:
-                    # Select the card
-                    (status, uid) = self.RFIDReader.anticoll()
-                    
-                    if status == self.RFIDReader.OK:
-                        # We have the UID, generate unsigned integer
-                        # uid is a list of 5 bytes
-                        result = 0
-                        for i in range(4):  # Use only first 4 bytes
-                            result += (uid[i] << (8 * (3 - i)))
-                        
-                        # If we found a valid card ID, return it
-                        if result > 0:
-                            return result
-            except Exception as e:
-                print(f"RFID error: {e}")
-                time.sleep(0.1)  # Brief pause before retry
-        
-        return -1
+        print("READING RFID CARD")
+        try:
+            maxAttempts=0
+            while maxAttempts != 1:
+                # print(maxAttempts)
+                rdr = MFRC522(spi, sda)
+                uid = ""
+                (stat, tag_type) = rdr.request(rdr.REQIDL)
+                if stat == rdr.OK:
+                    (stat, raw_uid) = rdr.anticoll()
+                    if stat == rdr.OK:
+                        uid = ("0x%02x%02x%02x%02x" % (raw_uid[0], raw_uid[1], raw_uid[2], raw_uid[3]))
+                        return uid
+                maxAttempts+=1
+            return -1
+        except KeyboardInterrupt:
+            print("Bye")
+            return -1
     
     # def wake_display(self):
     #     if self.display_controller:
