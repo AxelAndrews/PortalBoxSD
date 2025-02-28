@@ -2,7 +2,6 @@
 # -*- coding: utf8 -*-
 
 import time
-import serial
 from MFRC522 import MFRC522  # Importing the MFRC522 class you provided earlier
 
 # Port configuration for Windows (COM5)
