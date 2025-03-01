@@ -272,6 +272,7 @@ def main():
             
             print(f"After FSM call, state is: {fsm_state.__class__.__name__}")
             
+            service.box.update()
             # Memory management and brief pause
             gc.collect()
             time.sleep(0.1)

@@ -3,12 +3,12 @@ BuzzerController.py for MicroPython - ESP32 version
 Based on original Raspberry Pi implementation
 """
 import time
-from machine import Pin, PWM # type: ignore
+from machine import Pin, PWM
 
 # Default values
 DEFAULT_TONE = 800.0
 DEFAULT_DUTY = 512  # PWM range in ESP32 is 0-1023
-GPIO_BUZZER_PIN = 18  # Change to your ESP32 pin
+GPIO_BUZZER_PIN = 6  # Change to your ESP32 pin
 
 # Time interval for checking buzzer state
 LOOP_MS = 100
@@ -42,7 +42,7 @@ class BuzzerController:
         # Check if PWM is enabled in settings
         pwm_enabled = True
         if settings and "display" in settings and "buzzer_pwm" in settings["display"]:
-            if settings["display"]["buzzer_pwm"].lower() in ("no", "false", "0"):
+            if settings["display"]["buzzer_pwm"] in ("no", "false", "0"):
                 pwm_enabled = False
         
         # Initialize the buzzer state

@@ -16,12 +16,12 @@ from BuzzerController import BuzzerController
 from MFRC522 import MFRC522
 
 # Pin definitions for ESP32
-INTERLOCK_PIN = 9       # GPIO16
-#BUTTON_LED_PIN = 17      # GPIO17
-BUZZER_PIN = 6          # GPIO18
-BUTTON_PIN = 20          # GPIO19
-RELAY_PIN = 7           # GPIO21
-#RFID_RST_PIN = 22        # GPIO22
+INTERLOCK_PIN = 9      
+#BUTTON_LED_PIN = 17    
+BUZZER_PIN = 6          
+BUTTON_PIN = 20         
+RELAY_PIN = 7           
+#RFID_RST_PIN = 22      
 NEOPIXEL_PIN = 13
 ROW_PIN = 17  # Row 1 pin
 COL_PIN = 16  # Column 1 pin
@@ -66,8 +66,17 @@ class PortalBox:
         # self.button_last_state = False
         # self.button_last_check = time.ticks_ms()
         
-        # Setup the buzzer controller
-        # self.buzzer_controller = BuzzerController(BUZZER_PIN, settings)
+        # Initialize buzzer
+        self.buzzer = BuzzerController(settings=settings)
+        
+        # Predefined buzzer patterns
+        self.BEEP_PATTERNS = {
+            'success': {'freq': 1000, 'duration': 0.2},
+            'error':   {'freq': 500, 'duration': 0.5},
+            'warning': {'freq': 750, 'duration': 0.3},
+            'alert':   {'freq': 900, 'duration': 0.4}
+        }
+        print("Buzzer controller initialized")
         
         # Turn on button LED
         # self.button_led_pin.on()
@@ -93,7 +102,7 @@ class PortalBox:
         #     self.display_controller = None
         
         # Get buzzer settings
-        # self.buzzer_enabled = True
+        self.buzzer_enabled = True
         # if "buzzer_enabled" in settings["display"]:
         #     if settings["display"]["buzzer_enabled"].lower() in ("no", "false", "0"):
         #         self.buzzer_enabled = False
@@ -112,6 +121,13 @@ class PortalBox:
         self.outlist = [0] * 64  # RFID register tracking
         self.flash_signal = False
         self.flash_task = None
+
+    def update(self):
+        """
+        Update method to be called in main loop
+        Ensures buzzer effects are processed
+        """
+        self.buzzer.update()
 
     def write_to_lcd(self, message):
         '''
@@ -282,38 +298,54 @@ class PortalBox:
     #     """
     #     self.flash_signal = False
     
-    # def buzz_tone(self, freq, length=0.2, stop_song=False, stop_beeping=False):
-    #     """
-    #     Plays the specified tone on the buzzer for the specified length
-    #     """
-    #     if self.buzzer_enabled:
-    #         self.buzzer_controller.buzz_tone(freq, length, stop_song, stop_beeping)
+    def beep_once(self, pattern='success'):
+        """
+        Trigger a single beep with a predefined or custom pattern
+        
+        :param pattern: Either a predefined pattern name or a dict with 'freq' and 'duration'
+        """
+        if isinstance(pattern, str):
+            # Use predefined pattern
+            beep_config = self.BEEP_PATTERNS.get(pattern, self.BEEP_PATTERNS['success'])
+        else:
+            # Use custom pattern
+            beep_config = pattern
+        
+        self.buzzer.buzz_tone(
+            freq=beep_config.get('freq', 1000),
+            length=beep_config.get('duration', 0.2)
+        )
     
-    # def start_beeping(self, freq, duration=2.0, beeps=10):
-    #     """
-    #     Starts beeping for the duration with the given number of beeps
-    #     """
-    #     if self.buzzer_enabled:
-    #         self.buzzer_controller.beep(freq, duration, beeps)
+    def start_beeping(self, freq=500, duration=2.0, beeps=10):
+        """
+        Start a repeated beeping pattern
+        
+        :param freq: Frequency of beeps
+        :param duration: Total duration of beeping
+        :param beeps: Number of beeps
+        """
+        self.buzzer.beep(freq, duration, beeps)
     
-    # def stop_buzzer(self, stop_singing=False, stop_buzzing=False, stop_beeping=False):
-    #     """
-    #     Stops the specified effect(s) on the buzzer
-    #     """
-    #     self.buzzer_controller.stop(stop_singing, stop_buzzing, stop_beeping)
+    def stop_beeping(self):
+        """
+        Stop any ongoing beeping
+        """
+        self.buzzer.stop(stop_beeping=True)
     
-    # def beep_once(self):
-    #     """
-    #     Beeps the buzzer once for a default freq and length
-    #     """
-    #     self.buzz_tone(800, 0.1)
+    def play_alert_song(self, song_file='alert.txt'):
+        """
+        Play a predefined alert song
+        
+        :param song_file: Path to the song file
+        """
+        self.buzzer.play_song(song_file)
     
     def cleanup(self):
         """
         Clean up resources before shutting down
         """
         print("PortalBox.cleanup() starts")
-        # self.buzzer_controller.shutdown_buzzer()
+        self.buzzer.shutdown_buzzer()
         # self.set_display_color(BLACK, False)
         
         # Turn off all pins
