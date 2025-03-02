@@ -3,9 +3,8 @@
 
 # Import required libraries
 import json
-import network
+import network # type: ignore
 import sys
-import time
 
 # Import our local modules
 from Database import Database

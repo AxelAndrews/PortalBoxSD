@@ -48,7 +48,7 @@ class Database:
             params (dict): Dictionary of query parameters
 
         Returns:
-            dict or None: Parsed JSON response or None if request failed
+            dict, str, or None: Parsed JSON response, text response, or None if request failed
         """
         try:
             # Construct the query string
@@ -67,7 +67,7 @@ class Database:
             addr = addr_info[0][-1]  # Extract (IP, port)
             
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(10)  # 15-second timeout for longer operations
+            sock.settimeout(10)  # 10-second timeout for operations
             print(addr)
             # Try to connect with retries
             max_retries = 3
@@ -84,7 +84,7 @@ class Database:
                         # Create a new socket for each retry
                         sock.close()
                         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        sock.settimeout(15)
+                        sock.settimeout(10)
                     else:
                         raise
             # Prepare HTTP request
@@ -128,13 +128,29 @@ class Database:
                 print("Warning: Empty response body")
                 return None
 
-            try:
-                json_body = json.loads(body)  # Try parsing as JSON
-                return json_body
-            except ValueError as e:
-                print("Error parsing JSON:", e)
-                print("Raw response body:", body)
+            # Check HTTP status code
+            status_line = headers.split('\r\n')[0]
+            status_code = int(status_line.split(' ')[1]) if len(status_line.split(' ')) > 1 else 0
+            
+            if status_code >= 400:
+                print(f"HTTP Error: {status_code}")
                 return None
+
+            # Try to parse as JSON first
+            try:
+                json_body = json.loads(body)
+                return json_body
+            except ValueError:
+                # If not JSON, check if it's a successful text response
+                if "success" in body.lower() or "completed" in body.lower():
+                    print("Received success message:", body.strip())
+                    return True
+                elif body.strip().isdigit():
+                    # Handle numeric responses
+                    return int(body.strip())
+                else:
+                    print("Non-JSON response:", body.strip())
+                    return body.strip()
 
         except Exception as e:
             print(f"API request failed: {e}")
@@ -159,8 +175,15 @@ class Database:
         if response is None:
             print("API error")
             return -1
+        elif isinstance(response, bool):
+            return 1 if response else 0
+        elif isinstance(response, (int, str)):
+            try:
+                return int(response)
+            except (ValueError, TypeError):
+                return -1
         else:
-            return int(response) if isinstance(response, (int, str)) else -1
+            return -1
 
     def register(self, mac_address):
         '''
@@ -174,10 +197,14 @@ class Database:
         
         response = self._make_api_request("PUT", params)
         
+        # Handle both JSON and text responses
         if response is None:
             print("API error")
             return False
+        elif isinstance(response, bool):
+            return response
         else:
+            # Any non-None response is considered success
             return True
 
     def get_equipment_profile(self, mac_address):
@@ -202,7 +229,7 @@ class Database:
             print("API error in get_equipment_profile")
             self.requires_training = True
             self.requires_payment = False
-        else:
+        elif isinstance(response, list) and len(response) > 0:
             try:
                 response_details = response[0]
                 profile = (
@@ -214,8 +241,8 @@ class Database:
                     int(response_details["timeout"]),
                     int(response_details["allow_proxy"])
                 )
-                self.requires_training = int(response_details["requires_training"])
-                self.requires_payment = int(response_details["charge_policy"])
+                self.requires_training = int(response_details["requires_training"]) == 1
+                self.requires_payment = int(response_details["charge_policy"]) > 0
             except (KeyError, IndexError, TypeError) as e:
                 print(f"Error processing profile data: {e}")
                 
@@ -235,7 +262,11 @@ class Database:
         }
         
         response = self._make_api_request("POST", params)
-        
+        # Just log the response, we don't need to return anything specific
+        if response:
+            print("Successfully logged started status")
+        else:
+            print("Failed to log started status")
 
     def log_shutdown_status(self, equipment_id, card_id):
         '''
@@ -255,8 +286,10 @@ class Database:
         
         response = self._make_api_request("POST", params)
         
-        if response is None:
-            print("API error in log_shutdown_status")
+        if response:
+            print("Successfully logged shutdown status")
+        else:
+            print("Failed to log shutdown status")
 
     def log_access_attempt(self, card_id, equipment_id, successful):
         '''
@@ -277,8 +310,10 @@ class Database:
         
         response = self._make_api_request("POST", params)
         
-        if response is None:
-            print("API error in log_access_attempt")
+        if response:
+            print("Successfully logged access attempt")
+        else:
+            print("Failed to log access attempt")
 
     def log_access_completion(self, card_id, equipment_id):
         '''
@@ -297,8 +332,10 @@ class Database:
         
         response = self._make_api_request("POST", params)
         
-        if response is None:
-            print("API error in log_access_completion")
+        if response:
+            print("Successfully logged access completion")
+        else:
+            print("Failed to log access completion")
 
     def get_card_details(self, card_id, equipment_type_id):
         '''
@@ -320,30 +357,36 @@ class Database:
         
         response = self._make_api_request("GET", params)
         
-        if response is None or not isinstance(response, list) or len(response) == 0:
+        # Default response if API fails or returns unexpected format
+        default_details = {
+            "user_is_authorized": False,
+            "card_type": CardType.INVALID_CARD,
+            "user_authority_level": 0
+        }
+        
+        if response is None:
             print("API error in get_card_details")
-            details = {
-                "user_is_authorized": False,
-                "card_type": CardType.INVALID_CARD,
-                "user_authority_level": 0
-            }
-        else:
-            response_details = response[0]
+            return default_details
+        elif not isinstance(response, list) or len(response) == 0:
+            print("Invalid response format in get_card_details")
+            return default_details
+        
+        response_details = response[0]
+        
+        # Handle None values
+        user_role = response_details.get("user_role", 0)
+        if user_role is None:
+            user_role = 0
             
-            # Handle None values
-            user_role = response_details.get("user_role", 0)
-            if user_role is None:
-                user_role = 0
-                
-            card_type = response_details.get("card_type", -1)
-            if card_type is None:
-                card_type = -1
-                
-            details = {
-                "user_is_authorized": self.is_user_authorized_for_equipment_type(response_details),
-                "card_type": card_type,
-                "user_authority_level": int(user_role)
-            }
+        card_type = response_details.get("card_type", -1)
+        if card_type is None:
+            card_type = -1
+            
+        details = {
+            "user_is_authorized": self.is_user_authorized_for_equipment_type(response_details),
+            "card_type": card_type,
+            "user_authority_level": int(user_role)
+        }
             
         return details
 
@@ -354,15 +397,21 @@ class Database:
         is_authorized = False
         
         try:
-            balance = float(card_details.get("user_balance", 0))
-            user_auth = int(card_details.get("user_auth", 0))
-            user_active = card_details.get("user_active")
+            # Handle potential None values with defaults
+            balance_val = card_details.get("user_balance", 0)
+            balance = float(balance_val) if balance_val is not None else 0.0
             
-            if user_active is None or int(user_active) != 1:
+            auth_val = card_details.get("user_auth", 0)
+            user_auth = int(auth_val) if auth_val is not None else 0
+            
+            active_val = card_details.get("user_active")
+            user_active = int(active_val) if active_val is not None else 0
+            
+            if user_active != 1:
                 return False
                 
             if self.requires_training and self.requires_payment:
-                is_authorized = (balance > 0.0 and user_auth)
+                is_authorized = (balance > 0.0 and user_auth == 1)
             elif self.requires_training and not self.requires_payment:
                 is_authorized = (user_auth == 1)
             elif not self.requires_training and self.requires_payment:
@@ -392,14 +441,17 @@ class Database:
         
         response = self._make_api_request("GET", params)
         
-        if response is None or not isinstance(response, list) or len(response) == 0:
+        if response is None:
             print("API error in get_user")
-        else:
+        elif isinstance(response, list) and len(response) > 0:
             response_details = response[0]
             user = (
                 response_details.get("name", "Unknown User"),
                 response_details.get("email", "unknown@example.com")
             )
+        elif isinstance(response, str) and response:
+            # Try to handle potential string response
+            user = (response, "unknown@example.com")
             
         return user
 
@@ -418,11 +470,16 @@ class Database:
         
         response = self._make_api_request("GET", params)
         
-        if response is None or not isinstance(response, list) or len(response) == 0:
+        if response is None:
             print("API error in get_equipment_name")
             return "Unknown"
-        else:
+        elif isinstance(response, list) and len(response) > 0:
             return response[0].get("name", "Unknown")
+        elif isinstance(response, str) and response:
+            # Handle string response
+            return response
+        else:
+            return "Unknown"
 
     def record_ip(self, equipment_id, ip):
         '''
@@ -438,7 +495,5 @@ class Database:
         
         response = self._make_api_request("POST", params)
         
-        if response is None:
-            print("API error in record_ip")
-            return False
-        return True
+        # Any non-None response is considered success
+        return response is not None

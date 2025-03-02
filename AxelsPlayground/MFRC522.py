@@ -1,7 +1,3 @@
-from machine import Pin, SPI
-from os import uname
-
-
 class MFRC522:
 
 	OK = 0

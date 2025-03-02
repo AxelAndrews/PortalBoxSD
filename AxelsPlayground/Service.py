@@ -1,15 +1,13 @@
 # service.py - MicroPython version
 
 # from the standard library
-import sys
 import time
 import network # type: ignore
 import gc
-from machine import Pin # type: ignore
+import json
 
 # our code
 import PortalFSM as fsm
-# import PortalBox
 from PortalBox import PortalBox
 from Database import Database
 from Database import CardType as CardType
@@ -25,7 +23,6 @@ input_data = {
     "button_pressed": False,
 }
 
-
 class PortalBoxApplication():
     """
     wrap code as a class to allow for clean sharing of objects
@@ -37,17 +34,35 @@ class PortalBoxApplication():
         Setup the bare minimum, deferring as much as possible to the run method
         """
         self.equipment_id = -1
-        self.box = PortalBox(settings)
         self.settings = settings
         self.running = False
         self.card_id = 0
-        self.WIFI_SSID="bucknell_iot"
-        self.WIFI_PASSWORD=""
+        
+        # Set WiFi credentials from config if available
+        self.WIFI_SSID = "bucknell_iot"
+        self.WIFI_PASSWORD = ""
+        
+        if "wifi" in settings:
+            if "ssid" in settings["wifi"]:
+                self.WIFI_SSID = settings["wifi"]["ssid"]
+            if "password" in settings["wifi"]:
+                self.WIFI_PASSWORD = settings["wifi"]["password"]
+                
+        print(f"Using WiFi SSID: {self.WIFI_SSID}")
+        
+        # Initialize the box hardware
+        print("Initializing PortalBox hardware...")
+        self.box = PortalBox(settings)
+        
+        # Connect to WiFi
         self.connect_wifi()
         
     def connect_wifi(self):
         """Connects to WiFi and prints the IP and MAC address."""
         print("Connecting to WiFi...")
+        self.box.write_to_lcd("Connecting to")
+        self.box.write_to_lcd("WiFi...")
+        
         wlan = network.WLAN(network.STA_IF)
         wlan.active(True)
     
@@ -64,16 +79,24 @@ class PortalBoxApplication():
                 time.sleep(1)
             
             if wlan.isconnected():
-                print(f"Connected! IP: {wlan.ifconfig()[0]}")
+                ip_address = wlan.ifconfig()[0]
+                print(f"Connected! IP: {ip_address}")
+                self.box.write_to_lcd(f"IP: {ip_address}")
+                time.sleep(1)
+                
                 mac_bytes = wlan.config('mac')
                 mac_hex = ''.join(['{:02x}'.format(b) for b in mac_bytes])
                 print(f"Device MAC address: {mac_hex}")
                 return True
             else:
                 print("Could not connect to WiFi")
+                self.box.write_to_lcd("WiFi Failed!")
+                time.sleep(1)
                 return False
         except Exception as e:
             print(f"WiFi connection failed: {e}")
+            self.box.write_to_lcd("WiFi Error!")
+            time.sleep(1)
             return False
 
     def connect_to_database(self):
@@ -82,11 +105,16 @@ class PortalBoxApplication():
         '''
         # connect to backend database
         print("Attempting to connect to database")
+        self.box.write_to_lcd("Connecting to DB")
 
         try:
             self.db = Database(self.settings["db"])
+            self.box.write_to_lcd("DB Connected!")
+            time.sleep(0.5)
         except Exception as e:
             print(f"Unable to connect to database exception raised: {e}")
+            self.box.write_to_lcd("DB Failed!")
+            time.sleep(1)
             raise e
 
         print("Successfully connected to database")
@@ -111,6 +139,8 @@ class PortalBoxApplication():
         """
         # Determine what we are
         profile = (-1,)
+        self.box.write_to_lcd("Getting Role...")
+        
         while profile[0] < 0:
             try:
                 # Step 1 Figure out our identity
@@ -122,11 +152,16 @@ class PortalBoxApplication():
             except Exception as e:
                 print(f"Error: {e}")
                 print("Didn't get profile, trying again in 5 seconds")
-                time.sleep(5)
+                self.box.write_to_lcd("Role Failed!")
+                time.sleep(1)
+                self.box.write_to_lcd("Retrying...")
+                time.sleep(4)
 
         # only run if we have role, which we might not if we were asked to
         # shutdown before we discovered a role
         if profile[0] < 0:
+            self.box.write_to_lcd("No Role Found!")
+            time.sleep(1)
             raise RuntimeError("Cannot start, no role has been assigned")
         else:
             self.equipment_id = profile[0]
@@ -137,7 +172,16 @@ class PortalBoxApplication():
             self.allow_proxy = profile[6]
         
         print(f"Discovered identity. Type: {self.equipment_type}({self.equipment_type_id}) Timeout: {self.timeout_minutes} m Allows Proxy: {self.allow_proxy}")
+        self.box.write_to_lcd(f"{self.equipment_type}")
+        time.sleep(0.5)
+        self.box.write_to_lcd(f"Timeout: {self.timeout_minutes}m")
+        time.sleep(0.5)
+        
+        # Log that we're started
         self.db.log_started_status(self.equipment_id)
+        
+        self.box.write_to_lcd("Ready!")
+        time.sleep(0.5)
 
     def get_inputs(self, old_input_data):
         """
@@ -157,16 +201,24 @@ class PortalBoxApplication():
         card_id = self.box.read_RFID_card()
         print("Tried to read card")
         print(card_id)
+        
+        # Convert hex string to int if card was read
         card_id = int(card_id, 16) if card_id != -1 else -1
+        
         # If a card is present, and old_input_data showed either no card present, or a different card present
         if(card_id > 0 and card_id != old_input_data["card_id"]):
             print(f"Card with ID: {card_id} read, Getting info from DB")
+            self.box.write_to_lcd(f"Card: {card_id}")
+            
             while True:
                 try:
                     details = self.db.get_card_details(card_id, self.equipment_type_id)
                     break
                 except Exception as e:
                     print(f"Exception: {e}\n trying again")
+                    self.box.write_to_lcd("DB Error")
+                    time.sleep(1)
+                    self.box.write_to_lcd("Retrying...")
                     time.sleep(1)
                     
             new_input_data = {
@@ -179,6 +231,20 @@ class PortalBoxApplication():
 
             # Log the card reading with the card type and ID
             print(f"Card of type: {new_input_data['card_type']} with ID: {new_input_data['card_id']} was read")
+            
+            # Show card type on LCD
+            card_type_str = "Unknown"
+            if new_input_data['card_type'] == CardType.USER_CARD:
+                card_type_str = "User"
+            elif new_input_data['card_type'] == CardType.PROXY_CARD:
+                card_type_str = "Proxy"
+            elif new_input_data['card_type'] == CardType.TRAINING_CARD:
+                card_type_str = "Training"
+            elif new_input_data['card_type'] == CardType.SHUTDOWN_CARD:
+                card_type_str = "Shutdown"
+                
+            auth_str = "Auth" if new_input_data['user_is_authorized'] else "Unauth"
+            self.box.write_to_lcd(f"{card_type_str}-{auth_str}")
 
         # If no card is present, just update the button
         elif(card_id <= 0):
@@ -210,6 +276,7 @@ class PortalBoxApplication():
         Stops the program
         '''
         print("Service Exiting")
+        self.box.write_to_lcd("Shutting down...")
         self.box.cleanup()
 
         if self.equipment_id:
@@ -220,24 +287,112 @@ class PortalBoxApplication():
 
 # Load configuration
 def load_config(config_file_path=DEFAULT_CONFIG_FILE_PATH):
-    import json
+    """
+    Loads configuration from JSON file with fallback defaults
+    """
+    print(f"Loading configuration from {config_file_path}")
     
+    # Default configuration
+    default_config = {
+        "db": {
+            "user": "admin",
+            "password": "PORTALBOX",
+            "host": "portalboxdb.cbwumiue49n9.us-east-2.rds.amazonaws.com",
+            "database": "portalboxdb",
+            "website": "ec2-3-14-141-222.us-east-2.compute.amazonaws.com",
+            "api": "box.php",
+            "bearer_token": "290900415d2d7aac80229cdea4f90fbf"
+        },
+        "display": {
+            "setup_color": "FF FF FF",
+            "setup_color_db": "00 FF FF",
+            "setup_color_email": "FF FF 00",
+            "setup_color_role": "FF 00 FF",
+            "auth_color": "00 FF 00",
+            "proxy_color": "DF 20 00",
+            "training_color": "80 00 80",
+            "sleep_color": "00 00 FF",
+            "unauth_color": "FF 00 00",
+            "no_card_grace_color": "FF FF 00",
+            "grace_timeout_color": "DF 20 00",
+            "timeout_color": "FF 00 00",
+            "unauth_card_grace_color": "FF 80 00",
+            "flash_rate": 3,
+            "enable_buzzer": True,
+            "buzzer_pwm": True,
+            "led_type": "NEOPIXEL"
+        },
+        "user_exp": {
+            "grace_period": 10
+        },
+        "wifi": {
+            "ssid": "bucknell_iot",
+            "password": ""
+        },
+        "pins": {
+            "INTERLOCK_PIN": 9,
+            "BUZZER_PIN": 6,
+            "BUTTON_PIN": 20,
+            "RELAY_PIN": 7,
+            "NEOPIXEL_PIN": 13,
+            "ROW_PIN": 17,
+            "COL_PIN": 16,
+            "LCD_I2C_ADDR": "0x20",  # Hexadecimal values should be strings in the JSON
+            "LCD_BUS": 0,
+            "LCD_SDA": 18,
+            "LCD_SCL": 19,
+            "RFID_SDA": 3,
+            "RFID_SCK": 2,
+            "RFID_MOSI": 11,
+            "RFID_MISO": 10
+        }
+    }
+    
+    # Try to load from file
     try:
         with open(config_file_path, 'r') as f:
-            settings = json.load(f)
-        return settings
-    except:
-        print(f"Error loading config file: {config_file_path}")
-        return None
+            file_config = json.load(f)
+            print("Successfully loaded config from file")
+            
+            # Merge the loaded config with defaults
+            # This ensures all required keys exist even if not in the file
+            merged_config = default_config.copy()
+            
+            # Update top-level sections 
+            for section in file_config:
+                if section in merged_config:
+                    # If section exists in defaults, update values
+                    if isinstance(merged_config[section], dict) and isinstance(file_config[section], dict):
+                        merged_config[section].update(file_config[section])
+                    else:
+                        # Direct replacement for non-dict sections
+                        merged_config[section] = file_config[section]
+                else:
+                    # Add new sections
+                    merged_config[section] = file_config[section]
+            
+            return merged_config
+            
+    except Exception as e:
+        print(f"Error loading config file {config_file_path}: {e}")
+        print("Using default configuration")
+        return default_config
 
 
 # Main entry point
 def main():
     # Load configuration
     settings = load_config()
-    if not settings:
-        print("Failed to load configuration. Exiting.")
-        sys.exit(1)
+    
+    # Print config summary
+    print("\n--- Configuration Summary ---")
+    if "display" in settings and "enable_buzzer" in settings["display"]:
+        print(f"Buzzer enabled: {settings['display']['enable_buzzer']}")
+    if "user_exp" in settings and "grace_period" in settings["user_exp"]:
+        print(f"Grace period: {settings['user_exp']['grace_period']}s")
+    if "pins" in settings:
+        print(f"Custom pin configuration: {len(settings['pins'])} pins defined")
+    print("---------------------------\n")
 
     # Create Portal Box Service
     print("Creating PortalBoxApplication")
@@ -250,6 +405,7 @@ def main():
     # Run service
     print("Running the FSM")
     service.running = True
+    
     try:
         while service.running:
             print("\n---- New loop iteration ----")
@@ -279,10 +435,13 @@ def main():
             # If the FSM is in the Shutdown state, then stop running the while loop
             if fsm_state.__class__.__name__ == "Shutdown":
                 break
+                
     except KeyboardInterrupt:
         print("Keyboard interrupt detected")
     except Exception as e:
         print(f"Error in main loop: {e}")
+        import sys
+        sys.print_exception(e)
     finally:
         print("FSM ends")
         # Cleanup

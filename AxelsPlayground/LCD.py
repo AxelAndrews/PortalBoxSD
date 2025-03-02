@@ -3,7 +3,6 @@
    This code was based on pyb_i2c_adafruit_lcd.py at https://github.com/dhylands/python_lcd/blob/master/lcd/pyb_i2c_adafruit_lcd.py"""
 
 from LCD_api import LcdApi
-from machine import I2C
 from utime import sleep_ms
 
 # The MCP23008 has a jumper selectable address: 0x20 - 0x27

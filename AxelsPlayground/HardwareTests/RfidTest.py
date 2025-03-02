@@ -1,26 +1,6 @@
-import time
-from machine import Pin, SoftSPI # type: ignore
-# from lib.rfid.mfrc522 import MFRC522
 from MFRC522 import MFRC522
 
 # Code derived from https://github.com/Tasm-Devil/micropython-mfrc522-esp32/tree/master
-
-import neopixel # type: ignore
-
-led = Pin(8, Pin.OUT) # GPIO2 is often connected to the onboard LED
-np=neopixel.NeoPixel(led,1) 
-
-# sck = Pin(18, Pin.OUT)
-# mosi = Pin(23, Pin.OUT)
-# miso = Pin(19, Pin.OUT)
-# spi = SoftSPI(baudrate=100000, polarity=0, phase=0, sck=sck, mosi=mosi, miso=miso)
-
-# sda = Pin(5, Pin.OUT)
-# sda = Pin(3, Pin.OUT)
-# sck = Pin(2, Pin.OUT)
-# mosi = Pin(11, Pin.OUT)
-# miso = Pin(10, Pin.OUT)
-# spi = SoftSPI(baudrate=100000, polarity=0, phase=0, sck=sck, mosi=mosi, miso=miso)
 
 def do_read():
     try:

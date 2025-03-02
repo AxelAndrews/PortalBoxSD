@@ -5,13 +5,10 @@ Adapted from the original Raspberry Pi implementation to MicroPython for ESP32-C
 """
 # Standard library
 import time
-from machine import Pin # type: ignore
 import gc
 
 # Our code - adjust imports based on your file structure
 from Database import CardType
-import Service
-from BuzzerController import BuzzerController
 
 # Use simpler time handling for MicroPython
 class SimpleDateTime:
@@ -30,15 +27,19 @@ class SimpleTimeDelta:
 datetime = SimpleDateTime
 timedelta = SimpleTimeDelta
 
+# Global state variables for FSM (this is a critical change for MicroPython)
+# These variables will be shared across all state instances
+FSM_STATE = {
+    "auth_user_id": -1,
+    "proxy_id": -1,
+    "training_id": -1,
+    "user_authority_level": 0,
+    "allow_proxy": 0,
+    "last_state_name": ""
+}
+
 class State(object):
     """The parent state for all FSM states."""
-
-    # Shared state variables that keep a little history of the cards
-    # that have been presented to the box.
-    auth_user_id = -1
-    proxy_id = -1
-    training_id = -1
-    user_authority_level = 0
 
     def __init__(self, portal_box_service, input_data):
         self.service = portal_box_service
@@ -46,20 +47,33 @@ class State(object):
         self.grace_start = datetime.now()
         self.timeout_delta = timedelta(0)
         self.grace_delta = timedelta(seconds=10)
-        self.on_enter(input_data)
         self.flash_rate = 3
+        
+        # Initialize allow_proxy from the service if available
+        if hasattr(self.service, 'allow_proxy'):
+            FSM_STATE["allow_proxy"] = self.service.allow_proxy
+            
+        self.on_enter(input_data)
 
     def next_state(self, cls, input_data):
         """Transition to a new state by creating a new instance of the state class"""
         print(f"State transition: {self.__class__.__name__} -> {cls.__name__}")
+        print(f"Before transition - auth_user_id: {FSM_STATE['auth_user_id']}, authority: {FSM_STATE['user_authority_level']}")
+        
+        # Record where we're coming from
+        FSM_STATE["last_state_name"] = self.__class__.__name__
+        
         # Create a new instance of the target state class
         new_state = cls(self.service, input_data)
-        # Copy important state variables to the new instance
-        new_state.auth_user_id = self.auth_user_id
-        new_state.proxy_id = self.proxy_id
-        new_state.training_id = self.training_id
-        new_state.user_authority_level = self.user_authority_level
-        return new_state  # Return the new state instance
+        
+        # Copy configuration settings to the new state instance
+        new_state.timeout_delta = self.timeout_delta
+        new_state.grace_delta = self.grace_delta
+        new_state.flash_rate = self.flash_rate
+        
+        # State variables are now global so no need to copy them
+        print(f"After transition - auth_user_id: {FSM_STATE['auth_user_id']}, authority: {FSM_STATE['user_authority_level']}")
+        return new_state
 
     def on_enter(self, input_data):
         """
@@ -120,10 +134,21 @@ class Setup(State):
                 self.service.get_equipment_role()
                 
                 self.timeout_delta = timedelta(minutes=self.service.timeout_minutes)
-                self.grace_delta = timedelta(seconds=2)
-                self.allow_proxy = self.service.allow_proxy
+                
+                # Set grace period (default to 10 seconds if not specified)
+                grace_period = 10
+                if "user_exp" in self.service.settings and "grace_period" in self.service.settings["user_exp"]:
+                    try:
+                        grace_period = int(self.service.settings["user_exp"]["grace_period"])
+                        print(f"Grace period set to {grace_period} seconds")
+                    except ValueError:
+                        pass
+                
+                self.grace_delta = timedelta(seconds=grace_period)
+                FSM_STATE["allow_proxy"] = self.service.allow_proxy
                 self.flash_rate = 3
 
+                print(f"Setup complete: timeout={self.service.timeout_minutes}m, grace={grace_period}s, allow_proxy={FSM_STATE['allow_proxy']}")
                 self.service.box.beep_once('success')
                 
                 print("Setup complete, transitioning to IdleNoCard...")
@@ -139,7 +164,6 @@ class Setup(State):
     def on_enter(self, input_data):
         super().on_enter(input_data)
         print("Starting setup")
-        # self.service.box.set_display_color(self.service.settings["display"]["setup_color"])
         try:
             try:
                 self.service.connect_to_database()
@@ -155,7 +179,7 @@ class Setup(State):
 
             self.timeout_delta = timedelta(minutes=self.service.timeout_minutes)
             
-            # Get grace period from settings, with a default of 2 seconds
+            # Get grace period from settings, with a default of 10 seconds
             grace_period = 10
             if "user_exp" in self.service.settings and "grace_period" in self.service.settings["user_exp"]:
                 try:
@@ -165,9 +189,15 @@ class Setup(State):
                     pass
                     
             self.grace_delta = timedelta(seconds=grace_period)
-            self.allow_proxy = self.service.allow_proxy
             
-            # Get flash rate from settings, with a default of 3
+            # Save the allow_proxy setting from the service
+            if hasattr(self.service, 'allow_proxy'):
+                FSM_STATE["allow_proxy"] = self.service.allow_proxy
+                print(f"Using allow_proxy={FSM_STATE['allow_proxy']} from service")
+            else:
+                print("Warning: service.allow_proxy not found, using default value of 0")
+                FSM_STATE["allow_proxy"] = 0
+                
             self.flash_rate = 3
             
             # Free up memory after setup is complete
@@ -208,7 +238,6 @@ class IdleNoCard(State):
     def on_enter(self, input_data):
         super().on_enter(input_data)
         print("In IDLENOCARD - waiting for card input")
-        # self.service.box.sleep_display()
 
 class AccessComplete(State):
     """
@@ -222,12 +251,14 @@ class AccessComplete(State):
     def on_enter(self, input_data):
         super().on_enter(input_data)
         print("Usage complete, logging usage and turning off machine")
-        self.service.db.log_access_completion(self.auth_user_id, self.service.equipment_id)
+        self.service.db.log_access_completion(FSM_STATE["auth_user_id"], self.service.equipment_id)
         self.service.box.set_equipment_power_on(False)
-        self.proxy_id = 0
-        self.training_id = 0
-        self.auth_user_id = 0
-        self.user_authority_level = 0
+        
+        # Reset all state variables
+        FSM_STATE["proxy_id"] = 0
+        FSM_STATE["training_id"] = 0
+        FSM_STATE["auth_user_id"] = 0
+        FSM_STATE["user_authority_level"] = 0
 
 class IdleUnknownCard(State):
     """
@@ -273,44 +304,71 @@ class RunningUnknownCard(State):
     """
     def __call__(self, input_data):
         print(f"Is USER? {input_data['card_type'] == CardType.USER_CARD}")
-        print(f"User authority level: {self.user_authority_level}")
-        print(f"Proxy Id: {self.proxy_id}")
+        print(f"User authority level: {FSM_STATE['user_authority_level']}")
+        print(f"Proxy Id: {FSM_STATE['proxy_id']}")
+        print(f"Allow proxy: {FSM_STATE['allow_proxy']}")
+        print(f"Previous state: {FSM_STATE['last_state_name']}")
+        print(f"Auth user ID: {FSM_STATE['auth_user_id']}")
         
-        # Proxy card, AND not coming from training mode
+        # Debug logging to help diagnose training mode issues
+        print(f"Training mode check: Card type is USER_CARD? {input_data['card_type'] == CardType.USER_CARD}")
+        print(f"Training mode check: Authority level >= 3? {FSM_STATE['user_authority_level'] >= 3}")
+        print(f"Training mode check: Not from proxy (proxy_id <= 0)? {FSM_STATE['proxy_id'] <= 0}")
+        print(f"Training mode check: Not from training or same card? {FSM_STATE['training_id'] <= 0 or FSM_STATE['training_id'] == input_data['card_id']}")
+        print(f"Training mode check: Not authorized? {not input_data['user_is_authorized']}")
+        
+        # Coming from RunningNoCard (during grace period)
+        coming_from_no_card = FSM_STATE["last_state_name"] == "RunningNoCard"
+        
+        # Proxy card during grace period
         if (
             input_data["card_type"] == CardType.PROXY_CARD and
-            self.training_id <= 0 
+            FSM_STATE["training_id"] <= 0 and
+            coming_from_no_card
         ):
             # If the machine allows proxy cards then go into proxy mode
-            if self.allow_proxy == 1:
+            if FSM_STATE["allow_proxy"] == 1:
+                print(f"Allowing proxy card since allow_proxy={FSM_STATE['allow_proxy']}")
                 return self.next_state(RunningProxyCard, input_data)
             # Otherwise go into a grace period 
             else:
+                print(f"Not allowing proxy card since allow_proxy={FSM_STATE['allow_proxy']}")
                 return self.next_state(RunningUnauthCard, input_data)
 
-        # If its the same user as before then just go back to auth user
-        elif input_data["card_id"] == self.auth_user_id:
+        # If it's the same user as before then just go back to auth user
+        elif input_data["card_id"] == FSM_STATE["auth_user_id"]:
             return self.next_state(RunningAuthUser, input_data)
 
-        # User card, AND
-        # The box was initially authorized by a trainer or admin AND
-        # Not coming from proxy mode AND
-        # Not coming from training mode, OR the card is the same one that was being trained AND
-        # An unauthorized user
-        elif (
+        # Check for training mode conditions
+        # 1. Card is a USER_CARD
+        # 2. Coming from RunningNoCard (during grace period)
+        # 3. Original user had authority level >= 3
+        # 4. Not coming from proxy mode
+        # 5. Either not from training mode OR this is the same trainee
+        # 6. Current card is not authorized
+        if (
             input_data["card_type"] == CardType.USER_CARD and
-            self.user_authority_level >= 3 and
-            self.proxy_id <= 0 and
-            (self.training_id <= 0 or self.training_id == input_data["card_id"]) and
+            coming_from_no_card and 
+            FSM_STATE["user_authority_level"] >= 3 and
+            FSM_STATE["proxy_id"] <= 0 and
+            (FSM_STATE["training_id"] <= 0 or FSM_STATE["training_id"] == input_data["card_id"]) and
             not input_data["user_is_authorized"]
         ):
+            print("All training mode criteria met! Entering RunningTrainingCard")
             return self.next_state(RunningTrainingCard, input_data)
+        
+        # Any other card during grace period, stay in grace period
+        elif coming_from_no_card:
+            print("Unknown card during grace period, staying in RunningNoCard")
+            return self.next_state(RunningNoCard, input_data)
 
+        # Check if time expired
         elif self.grace_expired():
             print("Exiting Grace period because the grace period expired")
             return self.next_state(AccessComplete, input_data)
-
-        if input_data["button_pressed"]:
+            
+        # Check if button pressed
+        elif input_data["button_pressed"]:
             print("Exiting Grace period because button was pressed")
             return self.next_state(AccessComplete, input_data)
             
@@ -337,18 +395,18 @@ class RunningAuthUser(State):
         super().on_enter(input_data)
         print("Authorized card in box, turning machine on and logging access")
         self.timeout_start = datetime.now()
-        self.proxy_id = 0
-        self.training_id = 0
+        FSM_STATE["proxy_id"] = 0
+        FSM_STATE["training_id"] = 0
         self.service.box.set_equipment_power_on(True)
-        # self.service.box.set_display_color(self.service.settings["display"]["auth_color"])
         self.service.box.beep_once('success')
 
-        # If the card is new ie, not coming from a timeout then don't log this as a new session
-        if self.auth_user_id != input_data["card_id"]:
+        # If the card is new, not coming from a timeout, then log as a new session
+        if FSM_STATE["auth_user_id"] != input_data["card_id"]:
             self.service.db.log_access_attempt(input_data["card_id"], self.service.equipment_id, True)
-        
-        self.auth_user_id = input_data["card_id"]
-        self.user_authority_level = input_data["user_authority_level"]
+            # Save the user's authority level for future state transitions
+            FSM_STATE["auth_user_id"] = input_data["card_id"]
+            FSM_STATE["user_authority_level"] = input_data["user_authority_level"]
+            print(f"Set user authority level to {FSM_STATE['user_authority_level']} from input data")
 
 class IdleUnauthCard(State):
     """
@@ -364,7 +422,6 @@ class IdleUnauthCard(State):
         print("Unauthorized card detected, turning off equipment")
         self.service.box.beep_once('error')
         self.service.box.set_equipment_power_on(False)
-        # self.service.box.set_display_color(self.service.settings["display"]["unauth_color"])
         self.service.db.log_access_attempt(input_data["card_id"], self.service.equipment_id, False)
 
 class RunningNoCard(State):
@@ -375,6 +432,8 @@ class RunningNoCard(State):
     def __call__(self, input_data):
         # Card detected
         if input_data["card_id"] > 0 and input_data["card_type"] != CardType.INVALID_CARD:
+            # Make sure the state knows where the authority level is coming from
+            print(f"Card detected in grace period, authority level: {FSM_STATE['user_authority_level']}")
             return self.next_state(RunningUnknownCard, input_data)
 
         if self.grace_expired():
@@ -389,20 +448,9 @@ class RunningNoCard(State):
 
     def on_enter(self, input_data):
         super().on_enter(input_data)
-        print("Grace period started - card removed")
+        print(f"Grace period started - card removed. Auth user: {FSM_STATE['auth_user_id']}, Authority: {FSM_STATE['user_authority_level']}")
         self.grace_start = datetime.now()
-        # self.service.box.flash_display(
-        #     self.service.settings["display"]["no_card_grace_color"],
-        #     int(self.grace_delta.total_seconds() * 1000),
-        #     int(self.grace_delta.total_seconds() * self.flash_rate)
-        # )
-        
         self.service.box.start_beeping()
-        #     800,
-        #     int(self.grace_delta.total_seconds() * 1000),
-        #     10
-        #     #int(self.grace_delta.total_seconds() * self.flash_rate)
-        # )
 
 class RunningUnauthCard(State):
     """
@@ -413,7 +461,7 @@ class RunningUnauthCard(State):
         # Card detected and its the same card that was using the machine before the unauth card was inserted 
         if (
             input_data["card_id"] > 0 and
-            input_data["card_id"] == self.auth_user_id
+            input_data["card_id"] == FSM_STATE["auth_user_id"]
         ):
             return self.next_state(RunningUnknownCard, input_data)
 
@@ -432,18 +480,7 @@ class RunningUnauthCard(State):
         print("Unauthorized Card grace period started")
         print(f"Card type was {input_data['card_type']}")
         self.grace_start = datetime.now()
-        # self.service.box.set_display_color(self.service.settings["display"]["unauth_card_grace_color"])
-        # self.service.box.flash_display(
-        #     self.service.settings["display"]["unauth_card_grace_color"],
-        #     int(self.grace_delta.total_seconds() * 1000),
-        #     int(self.grace_delta.total_seconds() * self.flash_rate)
-        # )
-        
         self.service.box.start_beeping()
-        #     800,
-        #     int(self.grace_delta.total_seconds() * 1000),
-        #     #int(self.grace_delta.total_seconds() * self.flash_rate)
-        # )
 
 class RunningTimeout(State):
     """
@@ -467,17 +504,7 @@ class RunningTimeout(State):
         super().on_enter(input_data)
         print("Machine timeout, grace period started")
         self.grace_start = datetime.now()
-        # self.service.box.flash_display(
-        #     self.service.settings["display"]["grace_timeout_color"],
-        #     int(self.grace_delta.total_seconds() * 1000),
-        #     int(self.grace_delta.total_seconds() * self.flash_rate)
-        # )
-        
         self.service.box.start_beeping()
-        #     800,
-        #     int(self.grace_delta.total_seconds() * 1000),
-        #     #int(self.grace_delta.total_seconds() * self.flash_rate)
-        # )
 
 class IdleAuthCard(State):
     """
@@ -493,21 +520,20 @@ class IdleAuthCard(State):
         super().on_enter(input_data)
         print("Timeout grace period expired with card still in machine")
         self.service.box.set_equipment_power_on(False)
-        self.service.db.log_access_completion(self.auth_user_id, self.service.equipment_id)
+        self.service.db.log_access_completion(FSM_STATE["auth_user_id"], self.service.equipment_id)
         
         # # If its a proxy card 
-        # if self.proxy_id > 0:
-        #     self.service.send_user_email_proxy(self.auth_user_id)
-        # elif self.training_id > 0:
-        #     self.service.send_user_email_training(self.auth_user_id, self.training_id)
+        # if FSM_STATE["proxy_id"] > 0:
+        #     self.service.send_user_email_proxy(FSM_STATE["auth_user_id"])
+        # elif FSM_STATE["training_id"] > 0:
+        #     self.service.send_user_email_training(FSM_STATE["auth_user_id"], FSM_STATE["training_id"])
         # else:
         #     self.service.send_user_email(input_data["card_id"])
             
-        # self.service.box.set_display_color(self.service.settings["display"]["timeout_color"])
-        self.proxy_id = 0
-        self.training_id = 0
-        self.auth_user_id = 0
-        self.user_authority_level = 0
+        FSM_STATE["proxy_id"] = 0
+        FSM_STATE["training_id"] = 0
+        FSM_STATE["auth_user_id"] = 0
+        FSM_STATE["user_authority_level"] = 0
 
 class RunningProxyCard(State):
     """
@@ -526,15 +552,14 @@ class RunningProxyCard(State):
         super().on_enter(input_data)
         print("Running in proxy mode")
         self.timeout_start = datetime.now()
-        self.training_id = 0
+        FSM_STATE["training_id"] = 0
         
         # If the same proxy card is being reinserted then don't log it
-        if self.proxy_id != input_data["card_id"]:
+        if FSM_STATE["proxy_id"] != input_data["card_id"]:
             self.service.db.log_access_attempt(input_data["card_id"], self.service.equipment_id, True)
             
-        self.proxy_id = input_data["card_id"]
+        FSM_STATE["proxy_id"] = input_data["card_id"]
         self.service.box.set_equipment_power_on(True)
-        # self.service.box.set_display_color(self.service.settings["display"]["proxy_color"])
         self.service.box.beep_once('success')
 
 class RunningTrainingCard(State):
@@ -554,14 +579,13 @@ class RunningTrainingCard(State):
         super().on_enter(input_data)
         print("Running in training mode")
         self.timeout_start = datetime.now()
-        self.proxy_id = 0
+        FSM_STATE["proxy_id"] = 0
         
         # If the training card is new and not just reinserted after a grace period
-        if self.training_id != input_data["card_id"]:
+        if FSM_STATE["training_id"] != input_data["card_id"]:
             self.service.db.log_access_attempt(input_data["card_id"], self.service.equipment_id, True)
             
-        self.training_id = input_data["card_id"]
+        FSM_STATE["training_id"] = input_data["card_id"]
         
         self.service.box.set_equipment_power_on(True)
-        # self.service.box.set_display_color(self.service.settings["display"]["training_color"])
-        self.service.box.beep('success')
+        self.service.box.beep_once('success')
