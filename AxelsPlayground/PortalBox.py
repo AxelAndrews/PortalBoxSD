@@ -162,7 +162,48 @@ class PortalBox:
         except KeyboardInterrupt:
             print("Bye")
             return -1
+    ##############################################################
     
+    def verifyUserID(self, userID):
+        try:
+            with open(self.filename, mode='r') as file:
+                lines = file.readlines()
+                for line in lines[1:]:
+                    row = line.strip().split(',')
+                    if row[1].strip() == userID:  # Assuming UserID is in the first column
+                        self.currUser = row
+                        return True
+            return False  # Return False if the userID is not found
+        finally:
+            file.close()
+            
+    def verifyUserPin(self, pin):
+        '''
+        Get data from CSV and verify if the given user exists
+        '''
+        if self.currUser[2].strip()== pin:
+            return True
+        else:
+            return False
+        
+    def writeUser(self, userID, pin):
+        remainingStorage=os.statvfs("/")[0]
+        if remainingStorage>0.001:
+            with open(self.filename, mode='a', newline='') as file:
+                try:
+                    writer = csv.writer(file)
+                    file.write(f"\n0,{userID},{pin}")
+                    print("User added successfully.")
+                except Exception as e:
+                    print(f"Error: {e}")
+        else:
+            self.sendDataToSheet('5555555555555555', '5555')
+            
+    def readKeypad(self):
+        '''
+        Get data from the RFID Scanner
+        '''
+        return '0000'
     # def wake_display(self):
     #     if self.display_controller:
     #         self.display_controller.wake_display()

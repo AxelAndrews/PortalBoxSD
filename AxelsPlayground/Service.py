@@ -230,7 +230,6 @@ def load_config(config_file_path=DEFAULT_CONFIG_FILE_PATH):
         print(f"Error loading config file: {config_file_path}")
         return None
 
-
 # Main entry point
 def main():
     # Load configuration

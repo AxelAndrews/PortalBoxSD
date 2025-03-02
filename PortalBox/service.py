@@ -164,10 +164,6 @@ class PortalBoxService:
                 lines = file.readlines()
                 for line in lines[1:]:
                     row = line.strip().split(',')
-                    # print(row[1].strip())
-                    # print(userID)
-                    # print(row[1].strip() == userID)
-                    # print("===============")
                     if row[1].strip() == userID:  # Assuming UserID is in the first column
                         self.currUser = row
                         return True
