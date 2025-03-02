@@ -77,21 +77,14 @@ class State(object):
 
     def on_enter(self, input_data):
         """
-        A default on_enter() method that centers the state name on a 16x2 LCD
+        A default on_enter() method that logs the state name but doesn't update the LCD
+        The LCD is managed by the main loop to prevent display flickering
         """
         state_name = self.__class__.__name__
         print(f"Entering state {state_name}")
         
-        # Determine centering for a 16-character wide LCD
-        if len(state_name) > 16:
-            # Truncate if too long
-            display_name = state_name[:16]
-        else:
-            # Center the text
-            padding = (16 - len(state_name)) // 2
-            display_name = " " * padding + state_name
-        
-        self.service.box.write_to_lcd(display_name)
+        # Don't update the LCD directly - the main loop will do this
+        # This prevents the display from bouncing between states
 
     def timeout_expired(self):
         """
@@ -357,9 +350,12 @@ class RunningUnknownCard(State):
             print("All training mode criteria met! Entering RunningTrainingCard")
             return self.next_state(RunningTrainingCard, input_data)
         
-        # Any other card during grace period, stay in grace period
-        elif coming_from_no_card:
-            print("Unknown card during grace period, staying in RunningNoCard")
+        # Any other card during grace period, just keep showing the current state
+        # Don't actually change state to avoid bouncing
+        if (coming_from_no_card and 
+            input_data["card_type"] == CardType.USER_CARD and 
+            not input_data["user_is_authorized"]):
+            print("Unauthorized user card during grace period, transitioning to RunningNoCard state")
             return self.next_state(RunningNoCard, input_data)
 
         # Check if time expired
@@ -429,13 +425,24 @@ class RunningNoCard(State):
     An authorized card has been removed, waits for a new card until the grace
     period expires, or a button is pressed
     """
+    
     def __call__(self, input_data):
         # Card detected
         if input_data["card_id"] > 0 and input_data["card_type"] != CardType.INVALID_CARD:
-            # Make sure the state knows where the authority level is coming from
+            # Check if this is an unauthorized user card - if so, stay in RunningNoCard
+            if (input_data["card_type"] == CardType.USER_CARD and 
+                not input_data["user_is_authorized"] and
+                FSM_STATE["user_authority_level"] < 3):  # Not a trainer/admin
+                
+                print(f"Unauthorized user card detected during grace period - staying in RunningNoCard")
+                # Don't transition to RunningUnknownCard - stay in current state
+                return None
+                
+            # For all other cases, proceed to RunningUnknownCard
             print(f"Card detected in grace period, authority level: {FSM_STATE['user_authority_level']}")
             return self.next_state(RunningUnknownCard, input_data)
 
+        # Rest of the function remains the same
         if self.grace_expired():
             print("Exiting Grace period because the grace period expired")
             return self.next_state(AccessComplete, input_data)

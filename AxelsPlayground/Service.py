@@ -37,6 +37,8 @@ class PortalBoxApplication():
         self.settings = settings
         self.running = False
         self.card_id = 0
+        self.current_state_name = "Initializing"  # Track current state name
+        self.last_displayed_state = ""  # Keep track of what's on the LCD
         
         # Set WiFi credentials from config if available
         self.WIFI_SSID = "bucknell_iot"
@@ -208,7 +210,11 @@ class PortalBoxApplication():
         # If a card is present, and old_input_data showed either no card present, or a different card present
         if(card_id > 0 and card_id != old_input_data["card_id"]):
             print(f"Card with ID: {card_id} read, Getting info from DB")
-            self.box.write_to_lcd(f"Card: {card_id}")
+            
+            # Briefly show card ID but don't overwrite state display
+            temp_lcd = f"Card: {card_id}"
+            print(temp_lcd)
+            # Don't update the LCD here to avoid interfering with state display
             
             while True:
                 try:
@@ -216,10 +222,14 @@ class PortalBoxApplication():
                     break
                 except Exception as e:
                     print(f"Exception: {e}\n trying again")
+                    # Only temporarily show error messages, then restore state
+                    prev_display = self.last_displayed_state
                     self.box.write_to_lcd("DB Error")
                     time.sleep(1)
                     self.box.write_to_lcd("Retrying...")
                     time.sleep(1)
+                    if prev_display:
+                        self.box.write_to_lcd(prev_display)
                     
             new_input_data = {
                 "card_id": card_id,
@@ -232,7 +242,7 @@ class PortalBoxApplication():
             # Log the card reading with the card type and ID
             print(f"Card of type: {new_input_data['card_type']} with ID: {new_input_data['card_id']} was read")
             
-            # Show card type on LCD
+            # Create card type debug info for log but don't show on LCD
             card_type_str = "Unknown"
             if new_input_data['card_type'] == CardType.USER_CARD:
                 card_type_str = "User"
@@ -244,7 +254,9 @@ class PortalBoxApplication():
                 card_type_str = "Shutdown"
                 
             auth_str = "Auth" if new_input_data['user_is_authorized'] else "Unauth"
-            self.box.write_to_lcd(f"{card_type_str}-{auth_str}")
+            
+            # Print to console but don't update LCD - this was the issue!
+            print(f"Card info: {card_type_str}-{auth_str}")
 
         # If no card is present, just update the button
         elif(card_id <= 0):
@@ -263,6 +275,25 @@ class PortalBoxApplication():
 
         print(f"New input data: {new_input_data}")
         return new_input_data
+
+    def update_display(self, state_name):
+        """Update the LCD display with a centered state name"""
+        if state_name == self.last_displayed_state:
+            # Don't update if it's already displaying this state
+            return
+            
+        # Center the state name on the display
+        if len(state_name) > 16:
+            # Truncate if too long
+            display_name = state_name[:16]
+        else:
+            # Center the text
+            padding = (16 - len(state_name)) // 2
+            display_name = " " * padding + state_name
+            
+        self.box.write_to_lcd(display_name)
+        self.last_displayed_state = display_name
+        print(f"LCD updated to: '{display_name}'")
 
     def get_user_auths(self, card_id):
         '''
@@ -401,6 +432,7 @@ def main():
     # Create finite state machine
     print("Creating FSM initial state")
     fsm_state = fsm.Setup(service, input_data)
+    last_state_class = fsm_state.__class__
     
     # Run service
     print("Running the FSM")
@@ -409,7 +441,14 @@ def main():
     try:
         while service.running:
             print("\n---- New loop iteration ----")
-            print(f"Current state: {fsm_state.__class__.__name__}")
+            current_state_name = fsm_state.__class__.__name__
+            print(f"CURRENT FSM STATE: {current_state_name}")
+            service.current_state_name = current_state_name
+            
+            # Only update LCD if state class has changed
+            if fsm_state.__class__ != last_state_class:
+                service.update_display(current_state_name)
+                last_state_class = fsm_state.__class__
             
             # Get inputs
             input_data_new = service.get_inputs(input_data)
@@ -422,9 +461,28 @@ def main():
             # Call the state handler which might return a new state
             print(f"Calling FSM state: {fsm_state.__class__.__name__}")
             new_state = fsm_state(input_data)
+            
+            # Check if we need to transition state
             if new_state:
-                print(f"State transition occurred")
-                fsm_state = new_state
+                # Special case: prevent bouncing between RunningNoCard and RunningUnknownCard 
+                # for unauthorized cards during grace period
+                skip_transition = False
+                if (new_state.__class__.__name__ == "RunningNoCard" and 
+                    fsm_state.__class__.__name__ == "RunningUnknownCard" and
+                    fsm.FSM_STATE["last_state_name"] == "RunningNoCard"):
+                    # We're trying to go back to RunningNoCard from RunningUnknownCard
+                    # But we were in RunningNoCard before - this is a bounce situation
+                    # Don't transition, stay in RunningUnknownCard
+                    if not input_data["user_is_authorized"] and input_data["card_type"] == CardType.USER_CARD:
+                        print(f"Preventing state bounce - staying in {fsm_state.__class__.__name__}")
+                        skip_transition = True
+                
+                if not skip_transition:
+                    print(f"State transition occurred")
+                    fsm_state = new_state
+                    # Update display with new state
+                    service.update_display(fsm_state.__class__.__name__)
+                    last_state_class = fsm_state.__class__
             
             print(f"After FSM call, state is: {fsm_state.__class__.__name__}")
             
