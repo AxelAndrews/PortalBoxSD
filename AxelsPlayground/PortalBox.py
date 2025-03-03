@@ -84,6 +84,19 @@ class PortalBox:
             freq=400000
         )
         self.lcd = I2cLcd(self.i2c, self.config["LCD_I2C_ADDR"], 2, 16)
+        ###############################################################
+        ##### THIS IS CURRENTLY HARD CODED
+        # self.lcd.backlight_off()
+        
+        self.backlight=Pin(21,Pin.OUT)
+        self.Blue=Pin(23,Pin.OUT)
+        self.Green=Pin(15,Pin.OUT)
+        self.Red=Pin(22,Pin.OUT)
+        self.backlight.on()
+        self.Red.on()
+        self.Blue.on()
+        self.Green.on()
+        ###############################################################
         print("LCD initialized")
         
         # Initialize buzzer with optional settings
@@ -276,3 +289,22 @@ class PortalBox:
             pass
             
         print("Buzzer, display, and GPIO should be turned off")
+        
+    def turn_LCD_Blue(self):
+        # self.lcd.backlight_off()
+        self.Red.on()
+        self.Blue.off()
+        self.Green.on()
+        
+    def turn_LCD_Red(self):
+        # self.lcd.backlight_off()
+        self.Blue.on()
+        self.Green.on()
+        self.Red.off()
+        
+    def turn_LCD_Green(self):
+        # self.lcd.backlight_off()
+        self.Red.on()
+        self.Blue.on()
+        self.Green.off()
+    
