@@ -26,7 +26,11 @@ DEFAULT_PIN_CONFIG = {
     "RFID_SDA": 3,
     "RFID_SCK": 2,
     "RFID_MOSI": 11,
-    "RFID_MISO": 10
+    "RFID_MISO": 10,
+    "BACKLIGHT": 21,
+    "LCD_RED": 22,
+    "LCD_BLUE": 23,
+    "LCD_GREEN": 15
 }
 
 # Default colors
@@ -88,15 +92,13 @@ class PortalBox:
         ##### THIS IS CURRENTLY HARD CODED
         # self.lcd.backlight_off()
         
-        self.backlight=Pin(21,Pin.OUT)
-        self.Blue=Pin(23,Pin.OUT)
-        self.Green=Pin(15,Pin.OUT)
-        self.Red=Pin(22,Pin.OUT)
+        self.backlight=Pin(DEFAULT_PIN_CONFIG["BACKLIGHT"],Pin.OUT)
+        self.Red=Pin(DEFAULT_PIN_CONFIG["LCD_RED"],Pin.OUT)
+        self.Green=Pin(DEFAULT_PIN_CONFIG["LCD_GREEN"],Pin.OUT)
+        self.Blue=Pin(DEFAULT_PIN_CONFIG["LCD_BLUE"],Pin.OUT)
         self.backlight.on()
         # FOR SOME REASON HIGH IS LOW AN LOW IS HIGH WTF :(
-        self.Red.on()
-        self.Blue.off()
-        self.Green.on() 
+        self.setColor("blue")
         ###############################################################
         print("LCD initialized")
         
@@ -291,21 +293,19 @@ class PortalBox:
             
         print("Buzzer, display, and GPIO should be turned off")
         
-    def turn_LCD_Blue(self):
-        # self.lcd.backlight_off()
-        self.Red.on()
-        self.Blue.off()
-        self.Green.on()
-        
-    def turn_LCD_Red(self):
-        # self.lcd.backlight_off()
-        self.Blue.on()
-        self.Green.on()
-        self.Red.off()
-        
-    def turn_LCD_Green(self):
-        # self.lcd.backlight_off()
-        self.Red.on()
-        self.Blue.on()
-        self.Green.off()
-    
+    def setColor(self, color):
+        if color=="red":
+            self.lcd.backlight_off()
+            self.Blue.on()
+            self.Green.on()
+            self.Red.off()
+        elif color=="blue":
+            self.lcd.backlight_off()
+            self.Red.on()
+            self.Blue.off()
+            self.Green.on()    
+        elif color=="green":
+            self.lcd.backlight_off()
+            self.Red.on()
+            self.Blue.on()
+            self.Green.off()

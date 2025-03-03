@@ -255,9 +255,9 @@ class PortalBoxApplication():
                 
             auth_str = "Auth" if new_input_data['user_is_authorized'] else "Unauth"
             if new_input_data["user_is_authorized"]:
-                self.box.turn_LCD_Green()
+                self.box.setColor("green")
             else: 
-                self.box.turn_LCD_Red()
+                self.box.setColor("red")
         
             self.box.write_to_lcd(f"{card_type_str}-{auth_str}")
 
@@ -272,7 +272,7 @@ class PortalBoxApplication():
             }
             # Reset Button to Idle Blue
             if new_input_data["button_pressed"]:
-                self.box.turn_LCD_Blue()
+                self.box.setColor("blue")
         # Else just use the old data and update the button
         # i.e., if there is a card, but it's the same as before
         else:
