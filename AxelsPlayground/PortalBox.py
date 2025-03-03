@@ -9,6 +9,7 @@ from Button import KeypadButton
 from LCD import I2cLcd
 from BuzzerController import BuzzerController
 from MFRC522 import MFRC522
+# from NeopixelController import NeoPixelController
 
 # Default pin definitions for ESP32 (will be overridden by config.json if present)
 DEFAULT_PIN_CONFIG = {
@@ -90,7 +91,6 @@ class PortalBox:
         self.lcd = I2cLcd(self.i2c, self.config["LCD_I2C_ADDR"], 2, 16)
         ###############################################################
         ##### THIS IS CURRENTLY HARD CODED
-        # self.lcd.backlight_off()
         
         self.backlight=Pin(DEFAULT_PIN_CONFIG["BACKLIGHT"],Pin.OUT)
         self.Red=Pin(DEFAULT_PIN_CONFIG["LCD_RED"],Pin.OUT)
@@ -98,9 +98,21 @@ class PortalBox:
         self.Blue=Pin(DEFAULT_PIN_CONFIG["LCD_BLUE"],Pin.OUT)
         self.backlight.on()
         # FOR SOME REASON HIGH IS LOW AN LOW IS HIGH WTF :(
-        self.setColor("blue")
+        self.setScreenColor("blue")
         ###############################################################
         print("LCD initialized")
+        
+        ###############################################################
+        # self.neopixels= NeoPixelController(
+        #     pin=self.config["NEOPIXEL_PIN"], 
+        #     numPixels=15,
+        #     brightness=0.2,
+        #     settings=settings
+        # )
+        # self.setNeopixelColor([0, 0, 255])
+        
+        ###############################################################
+        
         
         # Initialize buzzer with optional settings
         self.buzzer = BuzzerController(
@@ -293,7 +305,7 @@ class PortalBox:
             
         print("Buzzer, display, and GPIO should be turned off")
         
-    def setColor(self, color):
+    def setScreenColor(self, color):
         if color=="red":
             self.lcd.backlight_off()
             self.Blue.on()
@@ -309,3 +321,15 @@ class PortalBox:
             self.Red.on()
             self.Blue.on()
             self.Green.off()
+        elif color=="magenta":
+            self.lcd.backlight_off()
+            self.Red.off()
+            self.Blue.off()
+            self.Green.on()
+        elif color=="yellow":
+            self.lcd.backlight_off()
+            self.Red.off()
+            self.Blue.on()
+            self.Green.off()
+    # def setNeopixelColor(self, color):
+    #     self.neopixels.set_color(color)

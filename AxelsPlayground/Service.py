@@ -252,12 +252,18 @@ class PortalBoxApplication():
                 card_type_str = "Training"
             elif new_input_data['card_type'] == CardType.SHUTDOWN_CARD:
                 card_type_str = "Shutdown"
-                
+            print(old_input_data["user_authority_level"])
+            print(not new_input_data["user_is_authorized"])
+            
             auth_str = "Auth" if new_input_data['user_is_authorized'] else "Unauth"
             if new_input_data["user_is_authorized"]:
-                self.box.setColor("green")
+                self.box.setScreenColor("green")
+            elif new_input_data["user_is_authorized"]:
+                self.box.setScreenColor("green")
+            # elif old_input_data["user_authority_level"]==3 and new_input_data["user_is_authorized"]:
+            #     self.box.setScreenColor("magenta")
             else: 
-                self.box.setColor("red")
+                self.box.setScreenColor("red")
         
             self.box.write_to_lcd(f"{card_type_str}-{auth_str}")
 
@@ -272,7 +278,7 @@ class PortalBoxApplication():
             }
             # Reset Button to Idle Blue
             if new_input_data["button_pressed"]:
-                self.box.setColor("blue")
+                self.box.setScreenColor("blue")
         # Else just use the old data and update the button
         # i.e., if there is a card, but it's the same as before
         else:
@@ -450,7 +456,16 @@ def main():
             current_state_name = fsm_state.__class__.__name__
             print(f"CURRENT FSM STATE: {current_state_name}")
             service.current_state_name = current_state_name
-            
+            if current_state_name.strip()=="RunningAuthCard":
+                service.box.setScreenColor("green")
+            elif current_state_name.strip()=="RunningTrainingCard":
+                service.box.setScreenColor("magenta")
+            elif current_state_name.strip()=="IdleUnauthCard":
+                service.box.setScreenColor("red")
+            elif current_state_name.strip()=="IdleNoCard":
+                service.box.setScreenColor("blue")
+            elif current_state_name.strip()=="RunningNoCard":
+                service.box.setScreenColor("yellow")
             # Only update LCD if state class has changed
             if fsm_state.__class__ != last_state_class:
                 service.update_display(current_state_name)
