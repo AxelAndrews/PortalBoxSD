@@ -93,9 +93,10 @@ class PortalBox:
         self.Green=Pin(15,Pin.OUT)
         self.Red=Pin(22,Pin.OUT)
         self.backlight.on()
+        # FOR SOME REASON HIGH IS LOW AN LOW IS HIGH WTF :(
         self.Red.on()
-        self.Blue.on()
-        self.Green.on()
+        self.Blue.off()
+        self.Green.on() 
         ###############################################################
         print("LCD initialized")
         
