@@ -23,8 +23,8 @@
             "timeout_color": "FF 00 00",
             "unauth_card_grace_color": "FF 80 00",
             "flash_rate": 3,
-            "enable_buzzer": false,
-            "buzzer_pwm": false,
+            "enable_buzzer": true,
+            "buzzer_pwm": true,
             "led_type": "NEOPIXEL"
         },
         "user_exp": {

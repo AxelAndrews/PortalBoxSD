@@ -215,6 +215,7 @@ class Shutdown(State):
 
     def on_enter(self, input_data):
         super().on_enter(input_data)
+        self.service.box.stop_beeping()
         print("Entering shutdown state")
         self.service.box.set_equipment_power_on(False)
         self.service.shutdown(input_data["card_id"])
@@ -230,6 +231,7 @@ class IdleNoCard(State):
 
     def on_enter(self, input_data):
         super().on_enter(input_data)
+        self.service.box.stop_beeping()
         print("In IDLENOCARD - waiting for card input")
 
 class AccessComplete(State):
@@ -243,6 +245,7 @@ class AccessComplete(State):
 
     def on_enter(self, input_data):
         super().on_enter(input_data)
+        self.service.box.stop_beeping()
         print("Usage complete, logging usage and turning off machine")
         self.service.db.log_access_completion(FSM_STATE["auth_user_id"], self.service.equipment_id)
         self.service.box.set_equipment_power_on(False)
@@ -389,6 +392,7 @@ class RunningAuthUser(State):
 
     def on_enter(self, input_data):
         super().on_enter(input_data)
+        self.service.box.stop_beeping()
         print("Authorized card in box, turning machine on and logging access")
         self.timeout_start = datetime.now()
         FSM_STATE["proxy_id"] = 0
@@ -457,7 +461,11 @@ class RunningNoCard(State):
         super().on_enter(input_data)
         print(f"Grace period started - card removed. Auth user: {FSM_STATE['auth_user_id']}, Authority: {FSM_STATE['user_authority_level']}")
         self.grace_start = datetime.now()
-        self.service.box.start_beeping()
+        self.service.box.start_beeping(
+            freq=500,
+            duration=self.grace_delta.seconds,
+            beeps=self.flash_rate,
+        )
 
 class RunningUnauthCard(State):
     """
@@ -525,6 +533,7 @@ class IdleAuthCard(State):
 
     def on_enter(self, input_data):
         super().on_enter(input_data)
+        self.service.box.stop_beeping()
         print("Timeout grace period expired with card still in machine")
         self.service.box.set_equipment_power_on(False)
         self.service.db.log_access_completion(FSM_STATE["auth_user_id"], self.service.equipment_id)
@@ -557,6 +566,7 @@ class RunningProxyCard(State):
 
     def on_enter(self, input_data):
         super().on_enter(input_data)
+        self.service.box.stop_beeping()
         print("Running in proxy mode")
         self.timeout_start = datetime.now()
         FSM_STATE["training_id"] = 0
@@ -584,6 +594,7 @@ class RunningTrainingCard(State):
 
     def on_enter(self, input_data):
         super().on_enter(input_data)
+        self.service.box.stop_beeping()
         print("Running in training mode")
         self.timeout_start = datetime.now()
         FSM_STATE["proxy_id"] = 0

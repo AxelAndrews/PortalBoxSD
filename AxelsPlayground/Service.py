@@ -265,7 +265,7 @@ class PortalBoxApplication():
             else: 
                 self.box.setScreenColor("red")
         
-            self.box.write_to_lcd(f"{card_type_str}-{auth_str}")
+            # self.box.write_to_lcd(f"{card_type_str}-{auth_str}")
 
         # If no card is present, just update the button
         elif(card_id <= 0):
@@ -459,13 +459,17 @@ def main():
             if current_state_name.strip()=="RunningAuthCard":
                 service.box.setScreenColor("green")
             elif current_state_name.strip()=="RunningTrainingCard":
-                service.box.setScreenColor("magenta")
+                service.box.setScreenColor("green")
+            elif current_state_name.strip()=="RunningProxyCard":
+                service.box.setScreenColor("green")
             elif current_state_name.strip()=="IdleUnauthCard":
                 service.box.setScreenColor("red")
             elif current_state_name.strip()=="IdleNoCard":
                 service.box.setScreenColor("blue")
             elif current_state_name.strip()=="RunningNoCard":
                 service.box.setScreenColor("yellow")
+            elif current_state_name.strip()=="Setup":
+                service.box.setScreenColor("green")
             # Only update LCD if state class has changed
             if fsm_state.__class__ != last_state_class:
                 service.update_display(current_state_name)
