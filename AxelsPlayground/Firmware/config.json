@@ -23,8 +23,8 @@
             "timeout_color": "FF 00 00",
             "unauth_card_grace_color": "FF 80 00",
             "flash_rate": 3,
-            "enable_buzzer": true,
-            "buzzer_pwm": true,
+            "enable_buzzer": false,
+            "buzzer_pwm": false,
             "led_type": "NEOPIXEL"
         },
         "user_exp": {
@@ -42,10 +42,7 @@
             "NEOPIXEL_PIN": 13,
             "ROW_PIN": 17,
             "COL_PIN": 16,
-            "LCD_I2C_ADDR": "0x20",
-            "LCD_BUS": 0,
-            "LCD_SDA": 18,
-            "LCD_SCL": 19,
+            "LCD_TX": 5,
             "RFID_SDA": 3,
             "RFID_SCK": 2,
             "RFID_MOSI": 11,

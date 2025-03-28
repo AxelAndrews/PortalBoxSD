@@ -62,8 +62,8 @@ class PortalBoxApplication():
     def connect_wifi(self):
         """Connects to WiFi and prints the IP and MAC address."""
         print("Connecting to WiFi...")
-        self.box.write_to_lcd("Connecting to")
-        self.box.write_to_lcd("WiFi...")
+        self.box.lcd_print("Connecting to")
+        self.box.lcd_print("WiFi...")
         
         wlan = network.WLAN(network.STA_IF)
         wlan.active(True)
@@ -83,7 +83,7 @@ class PortalBoxApplication():
             if wlan.isconnected():
                 ip_address = wlan.ifconfig()[0]
                 print(f"Connected! IP: {ip_address}")
-                self.box.write_to_lcd(f"IP: {ip_address}")
+                self.box.lcd_print(f"IP: {ip_address}")
                 time.sleep(1)
                 
                 mac_bytes = wlan.config('mac')
@@ -92,12 +92,12 @@ class PortalBoxApplication():
                 return True
             else:
                 print("Could not connect to WiFi")
-                self.box.write_to_lcd("WiFi Failed!")
+                self.box.lcd_print("WiFi Failed!")
                 time.sleep(1)
                 return False
         except Exception as e:
             print(f"WiFi connection failed: {e}")
-            self.box.write_to_lcd("WiFi Error!")
+            self.box.lcd_print("WiFi Error!")
             time.sleep(1)
             return False
 
@@ -107,15 +107,15 @@ class PortalBoxApplication():
         '''
         # connect to backend database
         print("Attempting to connect to database")
-        self.box.write_to_lcd("Connecting to DB")
+        self.box.lcd_print("Connecting to DB")
 
         try:
             self.db = Database(self.settings["db"])
-            self.box.write_to_lcd("DB Connected!")
+            self.box.lcd_print("DB Connected!")
             time.sleep(0.5)
         except Exception as e:
             print(f"Unable to connect to database exception raised: {e}")
-            self.box.write_to_lcd("DB Failed!")
+            self.box.lcd_print("DB Failed!")
             time.sleep(1)
             raise e
 
@@ -141,7 +141,7 @@ class PortalBoxApplication():
         """
         # Determine what we are
         profile = (-1,)
-        self.box.write_to_lcd("Getting Role...")
+        self.box.lcd_print("Getting Role...")
         
         while profile[0] < 0:
             try:
@@ -154,15 +154,15 @@ class PortalBoxApplication():
             except Exception as e:
                 print(f"Error: {e}")
                 print("Didn't get profile, trying again in 5 seconds")
-                self.box.write_to_lcd("Role Failed!")
+                self.box.lcd_print("Role Failed!")
                 time.sleep(1)
-                self.box.write_to_lcd("Retrying...")
+                self.box.lcd_print("Retrying...")
                 time.sleep(4)
 
         # only run if we have role, which we might not if we were asked to
         # shutdown before we discovered a role
         if profile[0] < 0:
-            self.box.write_to_lcd("No Role Found!")
+            self.box.lcd_print("No Role Found!")
             time.sleep(1)
             raise RuntimeError("Cannot start, no role has been assigned")
         else:
@@ -174,15 +174,15 @@ class PortalBoxApplication():
             self.allow_proxy = profile[6]
         
         print(f"Discovered identity. Type: {self.equipment_type}({self.equipment_type_id}) Timeout: {self.timeout_minutes} m Allows Proxy: {self.allow_proxy}")
-        self.box.write_to_lcd(f"{self.equipment_type}")
+        self.box.lcd_print(f"{self.equipment_type}")
         time.sleep(0.5)
-        self.box.write_to_lcd(f"Timeout: {self.timeout_minutes}m")
+        self.box.lcd_print(f"Timeout: {self.timeout_minutes}m")
         time.sleep(0.5)
         
         # Log that we're started
         self.db.log_started_status(self.equipment_id)
         
-        self.box.write_to_lcd("Ready!")
+        self.box.lcd_print("Ready!")
         time.sleep(0.5)
 
     def get_inputs(self, old_input_data):
@@ -224,12 +224,12 @@ class PortalBoxApplication():
                     print(f"Exception: {e}\n trying again")
                     # Only temporarily show error messages, then restore state
                     prev_display = self.last_displayed_state
-                    self.box.write_to_lcd("DB Error")
+                    self.box.lcd_print("DB Error")
                     time.sleep(1)
-                    self.box.write_to_lcd("Retrying...")
+                    self.box.lcd_print("Retrying...")
                     time.sleep(1)
                     if prev_display:
-                        self.box.write_to_lcd(prev_display)
+                        self.box.lcd_print(prev_display)
                     
             new_input_data = {
                 "card_id": card_id,
@@ -255,17 +255,17 @@ class PortalBoxApplication():
             print(old_input_data["user_authority_level"])
             print(not new_input_data["user_is_authorized"])
             
-            auth_str = "Auth" if new_input_data['user_is_authorized'] else "Unauth"
-            if new_input_data["user_is_authorized"]:
-                self.box.setScreenColor("green")
-            elif new_input_data["user_is_authorized"]:
-                self.box.setScreenColor("green")
-            # elif old_input_data["user_authority_level"]==3 and new_input_data["user_is_authorized"]:
-            #     self.box.setScreenColor("magenta")
-            else: 
-                self.box.setScreenColor("red")
+            # #auth_str = "Auth" if new_input_data['user_is_authorized'] else "Unauth"
+            # if new_input_data["user_is_authorized"]:
+            #     self.box.setScreenColor("green")
+            # elif new_input_data["user_is_authorized"]:
+            #     self.box.setScreenColor("green")
+            # # elif old_input_data["user_authority_level"]==3 and new_input_data["user_is_authorized"]:
+            # #     self.box.setScreenColor("magenta")
+            # else: 
+            #     self.box.setScreenColor("red")
         
-            # self.box.write_to_lcd(f"{card_type_str}-{auth_str}")
+            # self.box.lcd_print(f"{card_type_str}-{auth_str}")
 
         # If no card is present, just update the button
         elif(card_id <= 0):
@@ -277,8 +277,8 @@ class PortalBoxApplication():
                 "button_pressed": self.box.has_button_been_pressed()
             }
             # Reset Button to Idle Blue
-            if new_input_data["button_pressed"]:
-                self.box.setScreenColor("blue")
+            # if new_input_data["button_pressed"]:
+            #     self.box.setScreenColor("blue")
         # Else just use the old data and update the button
         # i.e., if there is a card, but it's the same as before
         else:
@@ -303,7 +303,7 @@ class PortalBoxApplication():
             padding = (16 - len(state_name)) // 2
             display_name = " " * padding + state_name
             
-        self.box.write_to_lcd(display_name)
+        self.box.lcd_print(display_name)
         self.last_displayed_state = display_name
         print(f"LCD updated to: '{display_name}'")
 
@@ -319,7 +319,7 @@ class PortalBoxApplication():
         Stops the program
         '''
         print("Service Exiting")
-        self.box.write_to_lcd("Shutting down...")
+        self.box.lcd_print("Shutting down...")
         self.box.cleanup()
 
         if self.equipment_id:
@@ -380,10 +380,7 @@ def load_config(config_file_path=DEFAULT_CONFIG_FILE_PATH):
             "NEOPIXEL_PIN": 13,
             "ROW_PIN": 17,
             "COL_PIN": 16,
-            "LCD_I2C_ADDR": "0x20",  # Hexadecimal values should be strings in the JSON
-            "LCD_BUS": 0,
-            "LCD_SDA": 18,
-            "LCD_SCL": 19,
+            "LCD_TX": 5,
             "RFID_SDA": 3,
             "RFID_SCK": 2,
             "RFID_MOSI": 11,
@@ -456,20 +453,20 @@ def main():
             current_state_name = fsm_state.__class__.__name__
             print(f"CURRENT FSM STATE: {current_state_name}")
             service.current_state_name = current_state_name
-            if current_state_name.strip()=="RunningAuthCard":
+            if current_state_name.strip()=="RunningAuthUser":
                 service.box.setScreenColor("green")
             elif current_state_name.strip()=="RunningTrainingCard":
                 service.box.setScreenColor("green")
             elif current_state_name.strip()=="RunningProxyCard":
-                service.box.setScreenColor("green")
+                service.box.setScreenColor("cyan")
             elif current_state_name.strip()=="IdleUnauthCard":
                 service.box.setScreenColor("red")
             elif current_state_name.strip()=="IdleNoCard":
                 service.box.setScreenColor("blue")
             elif current_state_name.strip()=="RunningNoCard":
-                service.box.setScreenColor("yellow")
+                service.box.setScreenColor("white")
             elif current_state_name.strip()=="Setup":
-                service.box.setScreenColor("green")
+                service.box.setScreenColor("yellow")
             # Only update LCD if state class has changed
             if fsm_state.__class__ != last_state_class:
                 service.update_display(current_state_name)

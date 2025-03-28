@@ -6,7 +6,7 @@ import time
 
 # Import local modules
 from Button import KeypadButton
-from LCD import I2cLcd
+from RGBLCD import RGBLCD
 from BuzzerController import BuzzerController
 from MFRC522 import MFRC522
 # from NeopixelController import NeoPixelController
@@ -20,24 +20,31 @@ DEFAULT_PIN_CONFIG = {
     "NEOPIXEL_PIN": 13,
     "ROW_PIN": 17,
     "COL_PIN": 16,
-    "LCD_I2C_ADDR": 0x20,
-    "LCD_BUS": 0,
-    "LCD_SDA": 18,
-    "LCD_SCL": 19,
+    "LCD_TX": 5,
     "RFID_SDA": 3,
     "RFID_SCK": 2,
     "RFID_MOSI": 11,
     "RFID_MISO": 10,
-    "BACKLIGHT": 21,
-    "LCD_RED": 22,
-    "LCD_BLUE": 23,
-    "LCD_GREEN": 15
 }
 
-# Default colors
-BLACK = "00 00 00"
-RED = "FF 00 00"
-YELLOW = "FF FF 00"
+# Default Colors for RGB
+colors = [
+        (255, 0, 0, "Red"),
+        (0, 255, 0, "Green"),
+        (0, 0, 255, "Blue"),
+        (255, 255, 0, "Yellow"),
+        (255, 0, 255, "Magenta"),
+        (0, 255, 255, "Cyan"),
+        (255, 255, 255, "White")
+    ]
+
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+MAGENTA = (255, 0, 255)
+CYAN = (0, 255, 255)
+WHITE = (255, 255, 255)
 
 class PortalBox:
     '''
@@ -81,27 +88,13 @@ class PortalBox:
         self.relay_pin = Pin(self.config["RELAY_PIN"], Pin.OUT)
         self.keypad_button = KeypadButton(self.config["ROW_PIN"], self.config["COL_PIN"])
 
-        # Set up I2C for LCD
-        self.i2c = I2C(
-            self.config["LCD_BUS"], 
-            sda=Pin(self.config["LCD_SDA"], Pin.PULL_UP), 
-            scl=Pin(self.config["LCD_SCL"], Pin.PULL_UP), 
-            freq=400000
-        )
-        self.lcd = I2cLcd(self.i2c, self.config["LCD_I2C_ADDR"], 2, 16)
-        ###############################################################
-        ##### THIS IS CURRENTLY HARD CODED
-        
-        self.backlight=Pin(DEFAULT_PIN_CONFIG["BACKLIGHT"],Pin.OUT)
-        self.Red=Pin(DEFAULT_PIN_CONFIG["LCD_RED"],Pin.OUT)
-        self.Green=Pin(DEFAULT_PIN_CONFIG["LCD_GREEN"],Pin.OUT)
-        self.Blue=Pin(DEFAULT_PIN_CONFIG["LCD_BLUE"],Pin.OUT)
-        self.backlight.on()
-        # FOR SOME REASON HIGH IS LOW AN LOW IS HIGH WTF :(
-        self.setScreenColor("blue")
-        ###############################################################
+        # Initialize the LCD with conservative timing
+        self.lcd = RGBLCD(uart_id=1, tx_pin=5, baud_rate=9600, cols=16, rows=2)
+        self.lcd.display_on()
+        self.setScreenColor("white")
         print("LCD initialized")
         
+        ## IMPLEMENT NEOPIXEL ASAP
         ###############################################################
         # self.neopixels= NeoPixelController(
         #     pin=self.config["NEOPIXEL_PIN"], 
@@ -150,9 +143,9 @@ class PortalBox:
         
         # Check if LCD is actually connected
         try:
-            self.write_to_lcd("Portal Box")
+            self.lcd_print("Portal Box")
             time.sleep(0.5)
-            self.write_to_lcd("Initialized")
+            self.lcd_print("Initialized")
             print("LCD test successful")
         except Exception as e:
             print(f"LCD test failed: {e}")
@@ -164,14 +157,15 @@ class PortalBox:
         """
         self.buzzer.update()
 
-    def write_to_lcd(self, message):
+    def lcd_print(self, message):
         '''
         Write a message to the LCD display
         @param message - string to display
         '''
         try:
             self.lcd.clear()
-            self.lcd.putstr(message)
+            self.lcd.home()
+            self.lcd.print(message)
         except Exception as e:
             print(f"LCD write error: {e}")
         
@@ -299,37 +293,28 @@ class PortalBox:
         # Clear the LCD display
         try:
             self.lcd.clear()
-            self.lcd.putstr("Shutting down...")
+            self.lcd.home()
+            self.lcd.print("Shutting down...")
         except:
             pass
             
         print("Buzzer, display, and GPIO should be turned off")
-        
+    
+    # Once Neopixels are working, this should control both at once
     def setScreenColor(self, color):
         if color=="red":
-            self.lcd.backlight_off()
-            self.Blue.on()
-            self.Green.on()
-            self.Red.off()
+            self.lcd.set_rgb_color(RED[0], RED[1], RED[2])
         elif color=="blue":
-            self.lcd.backlight_off()
-            self.Red.on()
-            self.Blue.off()
-            self.Green.on()    
+            self.lcd.set_rgb_color(BLUE[0], BLUE[1], BLUE[2])
         elif color=="green":
-            self.lcd.backlight_off()
-            self.Red.on()
-            self.Blue.on()
-            self.Green.off()
+            self.lcd.set_rgb_color(GREEN[0], GREEN[1], GREEN[2])
         elif color=="magenta":
-            self.lcd.backlight_off()
-            self.Red.off()
-            self.Blue.off()
-            self.Green.on()
+            self.lcd.set_rgb_color(MAGENTA[0], MAGENTA[1], MAGENTA[2])
         elif color=="yellow":
-            self.lcd.backlight_off()
-            self.Red.off()
-            self.Blue.on()
-            self.Green.off()
+            self.lcd.set_rgb_color(YELLOW[0], YELLOW[1], YELLOW[2])
+        elif color=="white":
+            self.lcd.set_rgb_color(WHITE[0], WHITE[1], WHITE[2])
+        elif color=="cyan":
+            self.lcd.set_rgb_color(CYAN[0], CYAN[1], CYAN[2])
     # def setNeopixelColor(self, color):
     #     self.neopixels.set_color(color)
