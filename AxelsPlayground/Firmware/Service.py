@@ -12,6 +12,7 @@ from PortalBox import PortalBox
 from Database import Database
 from Database import CardType as CardType
 from DisplayController import DisplayController
+import Keypad
 
 # Definitions aka constants
 DEFAULT_CONFIG_FILE_PATH = "config.json"
@@ -66,6 +67,7 @@ class PortalBoxApplication():
         
         # Special mode flag for RFID card reading
         self.in_card_reader_mode = False
+        self.in_certification_mode= False
         
         # Connect to WiFi
         self.connect_wifi()
@@ -211,12 +213,16 @@ class PortalBoxApplication():
         
         # Check for entering card reader mode specifically from IdleNoCard state
         if (self.current_state_name == "IdleNoCard" and 
-            self.box.has_button_been_pressed() and 
+            "*" in Keypad.scan_keypad() and 
             not self.in_card_reader_mode):
+        # if (self.current_state_name == "IdleNoCard" and 
+        #     "*" in self.box.has_button_been_pressed()[1] and 
+        #     not self.in_card_reader_mode):
             
             print("*** Entering card reader mode ***")
             # Enter card reader mode
             self.in_card_reader_mode = True
+            self.in_certification_mode= False
             self.display.display_two_line_message("Card ID Reader", "Scanning...", "cyan")
             self.box.beep_once('success')
             
@@ -224,14 +230,42 @@ class PortalBoxApplication():
             new_input_data = dict(old_input_data)
             new_input_data["button_pressed"] = False
             return new_input_data
+        
+        elif (self.current_state_name == "IdleNoCard" and 
+            "#" in Keypad.scan_keypad() and 
+            not self.in_certification_mode):
             
-        # Handle card reader mode if active
+            print("*** Entering certification mode ***")
+            # Enter card reader mode
+            self.in_card_reader_mode = False
+            self.in_certification_mode = True
+            self.display.display_two_line_message("Certification", "Scanning...", "cyan")
+            self.box.beep_once('success')
+            
+            # Create a copy and reset button pressed to avoid side effects
+            new_input_data = dict(old_input_data)
+            new_input_data["button_pressed"] = False
+            return new_input_data
+            
+        # # Handle card reader mode if active
         if self.in_card_reader_mode:
             # Run card reader mode, exit if it returns False
             still_in_mode = self.handle_card_reader_mode()
+            # time.sleep(0.0001)
             if not still_in_mode:
                 self.in_card_reader_mode = False
                 # Update display after exiting card reader mode
+                self.update_display_for_state(self.current_state_name)
+            new_input_data = dict(old_input_data)
+            new_input_data["button_pressed"] = False
+            return new_input_data
+                
+        if self.in_certification_mode:
+            # Run card reader mode, exit if it returns False
+            still_in_mode = self.handle_certification_mode()
+            if not still_in_mode:
+                self.in_certification_mode= False
+                # Update display after exiting card Certification mode
                 self.update_display_for_state(self.current_state_name)
                 
             # Create a copy and reset button pressed to avoid side effects
@@ -277,10 +311,11 @@ class PortalBoxApplication():
                 "user_is_authorized": details["user_is_authorized"],              
                 "card_type": details["card_type"],
                 "user_authority_level": details["user_authority_level"],
-                "button_pressed": self.box.has_button_been_pressed(),
-                "pin": details["pin"]
+                "button_pressed": self.box.has_button_been_pressed()[0]
             }
 
+            new_input_data["user_is_authorized"]=self.verifyPin(new_input_data["user_is_authorized"])
+                    
             # Log the card reading with the card type and ID
             print(f"Card of type: {new_input_data['card_type']} with ID: {new_input_data['card_id']} was read")
             
@@ -303,17 +338,48 @@ class PortalBoxApplication():
                 "user_is_authorized": False,
                 "card_type": CardType.INVALID_CARD,
                 "user_authority_level": 0,
-                "button_pressed": self.box.has_button_been_pressed()
+                "button_pressed": self.box.has_button_been_pressed()[0]
             }
         # Else just use the old data and update the button
         # i.e., if there is a card, but it's the same as before
         else:
             new_input_data = dict(old_input_data)  # Create a copy of the dictionary
-            new_input_data["button_pressed"] = self.box.has_button_been_pressed()
+            new_input_data["button_pressed"] = self.box.has_button_been_pressed()[0]
 
         print(f"New input data: {new_input_data}")
         return new_input_data
+    
+    def verifyPin(self, isAuthorized):
+        if isAuthorized == True:
+            attempts = 3  # Start with 3 attempts
+            self.display.display_two_line_message("Please Enter Pin", "Attempts:" + str(attempts), "blue")
+            while attempts > 0:  # Run while attempts are greater than 0
+                currPin = ""
+                while len(currPin) < 4:  # Ensure the PIN is 4 digits long
+                    button_pressed = self.box.has_button_been_pressed()[1]  # Get the pressed button (a list with a number)
+                    if button_pressed and isinstance(button_pressed[0], int):  # Check if the list has a number
+                        digit = str(button_pressed[0])  # Convert the number to a string
+                        currPin += digit  # Append the digit to the PIN
+                        self.display.display_message("Pin:" + currPin, "blue")
+                        self.display.display_two_line_message("Pin:" + currPin, "Attempts:" + str(attempts), "blue")
+                    time.sleep(0.0001)  # Small delay to avoid excessive CPU usage
 
+                # Check if the PIN is "0000" or if we've tried 3 times without success
+                if currPin == "0000":  # If the entered PIN is "0000", break out of the loop
+                    return True
+                    break
+                elif len(currPin) == 4 and attempts > 1:
+                    self.display.display_message("Incorrect Pin", "red")
+                    time.sleep(0.5)
+                    self.display.display_two_line_message("Pin:", "Attempts:" + str(attempts-1), "blue")
+                
+                # Decrement attempts after a failed attempt
+                attempts -= 1  # Decrease attempts
+                
+                if attempts == 0:
+                    self.display.display_message("Incorrect Pin", "red")
+                    return False
+                    break
     def handle_card_reader_mode(self):
         """
         Special mode for reading RFID cards and displaying their IDs
@@ -321,13 +387,14 @@ class PortalBoxApplication():
         """
         try:
             # Show scanning animation
-            self.display.animate_scanning()
+            self.display.animate_scanning("Card ID Reader")
             
             # Check for exit button press (* key)
-            if self.box.has_button_been_pressed():
+            if "*" in Keypad.scan_keypad() and not self.box.has_button_been_pressed()[0]:
                 print("Exiting card reader mode")
                 self.display.display_two_line_message("Exiting", "Card Reader Mode", "blue")
                 time.sleep(1)
+                self.display.display_message("Press * for Info")
                 return False
                 
             # Try reading a card
@@ -354,10 +421,53 @@ class PortalBoxApplication():
             print(f"Error in card reader mode: {e}")
             # Exit card reader mode on error
             return False
+        
+    def handle_certification_mode(self):
+        """
+        Special mode for reading RFID cards and displaying their IDs
+        Returns True if still in this mode, False if exiting
+        """
+        try:
+            # Show scanning animation
+            self.display.animate_scanning("Certification")
+            
+            # Check for exit button press (* key)
+            if "*" in Keypad.scan_keypad() and not self.box.has_button_been_pressed()[0]:
+                print("Exiting card reader mode")
+                self.display.display_two_line_message("Exiting", "Certification", "blue")
+                time.sleep(1)
+                self.display.display_message("Press * for Info")
+                return False
+                
+            # Try reading a card
+            card_id = self.box.read_RFID_card()
+            
+            # If card read successful
+            while card_id != -1:
+                self.display.display_message("Card Found", "blue")
+                # Convert from hex string to decimal integer for display
+                try:
+                    if "#" in Keypad.scan_keypad():
+                        self.display.display_two_line_message("Certification","Successful", "green")
+                        time.sleep(1)
+                        self.display.display_message("Press * for Info", "blue")
+                        return False
+                    else:
+                        card_id = self.box.read_RFID_card()
+                except Exception as e:
+                    print(f"Error in Certification: {e}")
+            # Continue in certification mode
+            return True
+        except Exception as e:
+            print(f"Error in card reader mode: {e}")
+            # Exit card reader mode on error
+            return False
 
     def update_display_for_state(self, state_name, card_id=-1):
         """Update the display based on current state and context"""
-        if state_name == self.last_displayed_state and not self.in_card_reader_mode:
+        # if state_name == self.last_displayed_state and (not self.in_card_reader_mode or not self.in_certification_mode):
+        if state_name == self.last_displayed_state and (not self.in_card_reader_mode):
+
             # Don't update if it's already displaying this state
             return
             

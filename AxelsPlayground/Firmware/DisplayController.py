@@ -210,7 +210,7 @@ class DisplayController:
         except Exception as e:
             print(f"Unauthorized display error: {e}")
     
-    def animate_scanning(self):
+    def animate_scanning(self, inputText):
         """
         Show a scanning animation while in card reading mode
         Should be called regularly from main loop
@@ -227,7 +227,7 @@ class DisplayController:
                 scan_text = f"Scanning{dots}"
                 
                 # Display the animation
-                self.display_two_line_message("Card ID Reader", scan_text, "cyan")
+                self.display_two_line_message(inputText, scan_text, "cyan")
                 
                 self.animation_last_update = current_time
         except Exception as e:

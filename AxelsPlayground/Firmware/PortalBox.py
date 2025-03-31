@@ -89,14 +89,14 @@ class PortalBox:
         self.setScreenColor("white")
         print("LCD initialized")
         
-        # Initialize DotStar LEDs
-        self.dotstar = DotStar(
-            spi_bus=1,
-            data_pin=self.config["DOTSTAR_DATA"],
-            clock_pin=self.config["DOTSTAR_CLOCK"],
-            num_leds=15,
-            brightness=16
-        )
+        # # Initialize DotStar LEDs
+        # self.dotstar = DotStar(
+        #     spi_bus=1,
+        #     data_pin=self.config["DOTSTAR_DATA"],
+        #     clock_pin=self.config["DOTSTAR_CLOCK"],
+        #     num_leds=15,
+        #     brightness=16
+        # )
         print("DotStar LEDs initialized")
         
         # Initialize buzzer with optional settings
@@ -153,9 +153,9 @@ class PortalBox:
         """
         self.buzzer.update()
         
-        # If DotStar animations are active, update them
-        if self.dotstar:
-            self.dotstar.update_animations()
+        # # If DotStar animations are active, update them
+        # if self.dotstar:
+        #     self.dotstar.update_animations()
 
     def lcd_print(self, message):
         '''
@@ -221,14 +221,15 @@ class PortalBox:
         '''
         try:
             current_time = time.ticks_ms()
-            
+            keys_pressed=""
             # Only check if enough time has passed (debounce)
-            if time.ticks_diff(current_time, self.last_keypad_check) > 50:  # 50ms debounce
+            if time.ticks_diff(current_time, self.last_keypad_check) > 25:  # 25ms debounce
+                # time.sleep(0.00001)
                 keys_pressed = scan_keypad()
                 
                 # Check for "*" key press
-                star_pressed_now = '*' in keys_pressed
-                star_pressed_before = '*' in self.last_keys_pressed
+                star_pressed_now = '*' in keys_pressed or "#" in keys_pressed
+                star_pressed_before = '*' in self.last_keys_pressed or "#" in self.last_keys_pressed
                 
                 # Store current state for next check
                 self.last_keys_pressed = keys_pressed
@@ -236,13 +237,13 @@ class PortalBox:
                 
                 # Detect rising edge (button press)
                 if star_pressed_now and not star_pressed_before:
-                    print("* key pressed")
-                    return True
-                    
-            return False
+                    print("* or # key pressed")
+                    return [True, keys_pressed]
+                        
+            return [False, keys_pressed]
         except Exception as e:
             print(f"Button press check error: {e}")
-            return False
+            return [False,""]
     
     def read_RFID_card(self):
         '''
@@ -334,9 +335,9 @@ class PortalBox:
         self.relay_pin.off()
         self.interlock_pin.off()
         
-        # Turn off DotStar LEDs
-        if self.dotstar:
-            self.dotstar.cleanup()
+        # # Turn off DotStar LEDs
+        # if self.dotstar:
+        #     self.dotstar.cleanup()
         
         # Clear the LCD display
         try:
