@@ -25,7 +25,7 @@
             "flash_rate": 3,
             "enable_buzzer": false,
             "buzzer_pwm": false,
-            "led_type": "NEOPIXEL"
+            "led_type": "DOTSTAR"
         },
         "user_exp": {
             "grace_period": 10
@@ -37,12 +37,9 @@
         "pins": {
             "INTERLOCK_PIN": 9,
             "BUZZER_PIN": 6,
-            "BUTTON_PIN": 20,
             "RELAY_PIN": 7,
             "DOTSTAR_DATA": 13,
             "DOTSTAR_CLOCK": 12,
-            "ROW_PIN": 17,
-            "COL_PIN": 16,
             "LCD_TX": 5,
             "RFID_SDA": 3,
             "RFID_SCK": 2,

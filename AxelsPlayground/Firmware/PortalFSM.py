@@ -2,6 +2,7 @@
 """
 The finite state machine for the portal box service.
 Adapted from the original Raspberry Pi implementation to MicroPython for ESP32-C6.
+Updated to work with the enhanced UI/UX using DisplayController.
 """
 # Standard library
 import time
@@ -157,6 +158,11 @@ class Setup(State):
     def on_enter(self, input_data):
         super().on_enter(input_data)
         print("Starting setup")
+        
+        # Update display with setup message if display controller is available
+        if hasattr(self.service, 'display'):
+            self.service.display.display_message("Setting Up...", "yellow")
+        
         try:
             try:
                 self.service.connect_to_database()
@@ -217,6 +223,11 @@ class Shutdown(State):
         super().on_enter(input_data)
         self.service.box.stop_beeping()
         print("Entering shutdown state")
+        
+        # Update display with shutdown message if display controller is available
+        if hasattr(self.service, 'display'):
+            self.service.display.display_message("Shutting Down...", "red")
+            
         self.service.box.set_equipment_power_on(False)
         self.service.shutdown(input_data["card_id"])
 
@@ -233,6 +244,11 @@ class IdleNoCard(State):
         super().on_enter(input_data)
         self.service.box.stop_beeping()
         print("In IDLENOCARD - waiting for card input")
+        
+        # Show instructional message if display controller is available
+        if hasattr(self.service, 'display'):
+            self.service.display.display_idle_instructions()
+
 
 class AccessComplete(State):
     """
@@ -249,6 +265,10 @@ class AccessComplete(State):
         print("Usage complete, logging usage and turning off machine")
         self.service.db.log_access_completion(FSM_STATE["auth_user_id"], self.service.equipment_id)
         self.service.box.set_equipment_power_on(False)
+        
+        # Update display with completion message if display controller is available
+        if hasattr(self.service, 'display'):
+            self.service.display.display_message("Session Complete", "blue")
         
         # Reset all state variables
         FSM_STATE["proxy_id"] = 0
@@ -293,6 +313,10 @@ class IdleUnknownCard(State):
     def on_enter(self, input_data):
         super().on_enter(input_data)
         print(f"Entering IdleUnknownCard state. Card ID: {input_data['card_id']}, Card Type: {input_data['card_type']}")
+        
+        # Show processing message if display controller is available
+        if hasattr(self.service, 'display'):
+            self.service.display.display_message("Processing Card...", "yellow")
 
 class RunningUnknownCard(State):
     """
@@ -376,6 +400,10 @@ class RunningUnknownCard(State):
     def on_enter(self, input_data):
         super().on_enter(input_data)
         print("Card detected during grace period")
+        
+        # Show processing message if display controller is available
+        if hasattr(self.service, 'display'):
+            self.service.display.display_message("Processing Card...", "yellow")
 
 class RunningAuthUser(State):
     """
@@ -407,6 +435,10 @@ class RunningAuthUser(State):
             FSM_STATE["auth_user_id"] = input_data["card_id"]
             FSM_STATE["user_authority_level"] = input_data["user_authority_level"]
             print(f"Set user authority level to {FSM_STATE['user_authority_level']} from input data")
+            
+            # Show welcome message if display controller is available
+            if hasattr(self.service, 'display'):
+                self.service.display.display_welcome(input_data["card_id"])
 
 class IdleUnauthCard(State):
     """
@@ -423,6 +455,10 @@ class IdleUnauthCard(State):
         self.service.box.beep_once('error')
         self.service.box.set_equipment_power_on(False)
         self.service.db.log_access_attempt(input_data["card_id"], self.service.equipment_id, False)
+        
+        # Show unauthorized message if display controller is available
+        if hasattr(self.service, 'display'):
+            self.service.display.display_unauthorized()
 
 class RunningNoCard(State):
     """
@@ -461,6 +497,12 @@ class RunningNoCard(State):
         super().on_enter(input_data)
         print(f"Grace period started - card removed. Auth user: {FSM_STATE['auth_user_id']}, Authority: {FSM_STATE['user_authority_level']}")
         self.grace_start = datetime.now()
+        
+        # Start grace timer on display controller if available
+        if hasattr(self.service, 'display'):
+            self.service.display.start_grace_timer(self.grace_delta.seconds)
+            self.service.display.display_two_line_message("Grace Period", "Insert Card", "yellow")
+        
         self.service.box.start_beeping(
             freq=500,
             duration=self.grace_delta.seconds,
@@ -495,6 +537,11 @@ class RunningUnauthCard(State):
         print("Unauthorized Card grace period started")
         print(f"Card type was {input_data['card_type']}")
         self.grace_start = datetime.now()
+        
+        # Show unauthorized message if display controller is available
+        if hasattr(self.service, 'display'):
+            self.service.display.display_two_line_message("Unauthorized Card", "Insert Auth Card", "red")
+            
         self.service.box.start_beeping()
 
 class RunningTimeout(State):
@@ -519,6 +566,11 @@ class RunningTimeout(State):
         super().on_enter(input_data)
         print("Machine timeout, grace period started")
         self.grace_start = datetime.now()
+        
+        # Show timeout message if display controller is available
+        if hasattr(self.service, 'display'):
+            self.service.display.display_two_line_message("Time Expired!", "Remove Card", "orange")
+            
         self.service.box.start_beeping()
 
 class IdleAuthCard(State):
@@ -538,13 +590,12 @@ class IdleAuthCard(State):
         self.service.box.set_equipment_power_on(False)
         self.service.db.log_access_completion(FSM_STATE["auth_user_id"], self.service.equipment_id)
         
-        # # If its a proxy card 
-        # if FSM_STATE["proxy_id"] > 0:
-        #     self.service.send_user_email_proxy(FSM_STATE["auth_user_id"])
-        # elif FSM_STATE["training_id"] > 0:
-        #     self.service.send_user_email_training(FSM_STATE["auth_user_id"], FSM_STATE["training_id"])
-        # else:
-        #     self.service.send_user_email(input_data["card_id"])
+        # Show timeout message if display controller is available
+        if hasattr(self.service, 'display'):
+            self.service.display.display_two_line_message("Session Ended", "Remove Card", "orange")
+        
+        # In the future, email notifications would go here
+        # self.service.send_user_email(input_data["card_id"])
             
         FSM_STATE["proxy_id"] = 0
         FSM_STATE["training_id"] = 0
@@ -578,6 +629,10 @@ class RunningProxyCard(State):
         FSM_STATE["proxy_id"] = input_data["card_id"]
         self.service.box.set_equipment_power_on(True)
         self.service.box.beep_once('success')
+        
+        # Show proxy mode message if display controller is available
+        if hasattr(self.service, 'display'):
+            self.service.display.display_two_line_message("Proxy Access", "Machine On", "cyan")
 
 class RunningTrainingCard(State):
     """
@@ -607,3 +662,7 @@ class RunningTrainingCard(State):
         
         self.service.box.set_equipment_power_on(True)
         self.service.box.beep_once('success')
+        
+        # Show training mode message if display controller is available
+        if hasattr(self.service, 'display'):
+            self.service.display.display_two_line_message("Training Mode", "Machine On", "green")

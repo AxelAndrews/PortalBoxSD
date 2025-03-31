@@ -30,7 +30,7 @@ class DotStar:
     - End frame: 4 bytes of 0xFF (or (n/2) / 16 bytes of 0x00 for SK9822)
     """
     
-    def __init__(self, spi_bus=1, data_pin=13, clock_pin=12, num_leds=15, brightness=16):
+    def __init__(self, spi_bus=0, data_pin=13, clock_pin=12, num_leds=15, brightness=16):
         """
         Initialize the DotStar controller
         
@@ -45,6 +45,7 @@ class DotStar:
         self.brightness = brightness
         self.leds = [(0, 0, 0)] * num_leds  # Initialize all LEDs as off
         
+        print("Starting.........")
         # Configure SPI bus
         self.spi = SPI(spi_bus, 
                        baudrate=1000000,  # 1 MHz
@@ -52,7 +53,9 @@ class DotStar:
                        phase=0,
                        sck=Pin(clock_pin),
                        mosi=Pin(data_pin),
-                       miso=None)  # No MISO needed for DotStar
+                       miso=Pin(4))  # No MISO needed for DotStar
+        
+        print("Made SPI Bus for Dotstars")
         
         # Initialize state variables for animations
         self.is_pulsing = False

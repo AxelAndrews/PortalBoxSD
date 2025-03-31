@@ -1,4 +1,4 @@
-# service.py - MicroPython version
+# service.py - MicroPython version with enhanced UI
 
 # from the standard library
 import time
@@ -11,10 +11,12 @@ import PortalFSM as fsm
 from PortalBox import PortalBox
 from Database import Database
 from Database import CardType as CardType
+from DisplayController import DisplayController
 
 # Definitions aka constants
 DEFAULT_CONFIG_FILE_PATH = "config.json"
 
+# Common input data structure shared across states
 input_data = {
     "card_id": 0,
     "user_is_authorized": False,
@@ -56,14 +58,22 @@ class PortalBoxApplication():
         print("Initializing PortalBox hardware...")
         self.box = PortalBox(settings)
         
+        # Store reference to service in box for user lookups
+        self.box.set_service(self)
+        
+        # Create the display controller
+        self.display = DisplayController(self.box)
+        
+        # Special mode flag for RFID card reading
+        self.in_card_reader_mode = False
+        
         # Connect to WiFi
         self.connect_wifi()
         
     def connect_wifi(self):
         """Connects to WiFi and prints the IP and MAC address."""
         print("Connecting to WiFi...")
-        self.box.lcd_print("Connecting to")
-        self.box.lcd_print("WiFi...")
+        self.display.display_two_line_message("Connecting to", "WiFi...", "yellow")
         
         wlan = network.WLAN(network.STA_IF)
         wlan.active(True)
@@ -83,7 +93,7 @@ class PortalBoxApplication():
             if wlan.isconnected():
                 ip_address = wlan.ifconfig()[0]
                 print(f"Connected! IP: {ip_address}")
-                self.box.lcd_print(f"IP: {ip_address}")
+                self.display.display_two_line_message("WiFi Connected", f"IP: {ip_address}", "green")
                 time.sleep(1)
                 
                 mac_bytes = wlan.config('mac')
@@ -92,12 +102,12 @@ class PortalBoxApplication():
                 return True
             else:
                 print("Could not connect to WiFi")
-                self.box.lcd_print("WiFi Failed!")
+                self.display.display_two_line_message("WiFi Failed!", "Check Settings", "red")
                 time.sleep(1)
                 return False
         except Exception as e:
             print(f"WiFi connection failed: {e}")
-            self.box.lcd_print("WiFi Error!")
+            self.display.display_two_line_message("WiFi Error!", f"{e}", "red")
             time.sleep(1)
             return False
 
@@ -107,15 +117,15 @@ class PortalBoxApplication():
         '''
         # connect to backend database
         print("Attempting to connect to database")
-        self.box.lcd_print("Connecting to DB")
+        self.display.display_message("Connecting to DB", "yellow")
 
         try:
             self.db = Database(self.settings["db"])
-            self.box.lcd_print("DB Connected!")
+            self.display.display_message("DB Connected!", "green")
             time.sleep(0.5)
         except Exception as e:
             print(f"Unable to connect to database exception raised: {e}")
-            self.box.lcd_print("DB Failed!")
+            self.display.display_message("DB Failed!", "red")
             time.sleep(1)
             raise e
 
@@ -141,7 +151,7 @@ class PortalBoxApplication():
         """
         # Determine what we are
         profile = (-1,)
-        self.box.lcd_print("Getting Role...")
+        self.display.display_message("Getting Role...", "yellow")
         
         while profile[0] < 0:
             try:
@@ -154,15 +164,13 @@ class PortalBoxApplication():
             except Exception as e:
                 print(f"Error: {e}")
                 print("Didn't get profile, trying again in 5 seconds")
-                self.box.lcd_print("Role Failed!")
-                time.sleep(1)
-                self.box.lcd_print("Retrying...")
-                time.sleep(4)
+                self.display.display_two_line_message("Role Failed!", "Retrying...", "red")
+                time.sleep(5)
 
         # only run if we have role, which we might not if we were asked to
         # shutdown before we discovered a role
         if profile[0] < 0:
-            self.box.lcd_print("No Role Found!")
+            self.display.display_message("No Role Found!", "red")
             time.sleep(1)
             raise RuntimeError("Cannot start, no role has been assigned")
         else:
@@ -174,16 +182,17 @@ class PortalBoxApplication():
             self.allow_proxy = profile[6]
         
         print(f"Discovered identity. Type: {self.equipment_type}({self.equipment_type_id}) Timeout: {self.timeout_minutes} m Allows Proxy: {self.allow_proxy}")
-        self.box.lcd_print(f"{self.equipment_type}")
-        time.sleep(0.5)
-        self.box.lcd_print(f"Timeout: {self.timeout_minutes}m")
-        time.sleep(0.5)
+        self.display.display_two_line_message(f"{self.equipment_type}", 
+                                             f"Timeout: {self.timeout_minutes}m", "cyan")
+        time.sleep(1)
         
         # Log that we're started
         self.db.log_started_status(self.equipment_id)
         
-        self.box.lcd_print("Ready!")
+        self.display.display_message("Ready!", "green")
         time.sleep(0.5)
+
+    # Fixes for the get_inputs and handle_card_reader_mode methods in Service.py
 
     def get_inputs(self, old_input_data):
         """
@@ -199,6 +208,38 @@ class PortalBoxApplication():
                     pressed since the last time it was checked
         """
         print("Getting inputs for FSM")
+        
+        # Check for entering card reader mode specifically from IdleNoCard state
+        if (self.current_state_name == "IdleNoCard" and 
+            self.box.has_button_been_pressed() and 
+            not self.in_card_reader_mode):
+            
+            print("*** Entering card reader mode ***")
+            # Enter card reader mode
+            self.in_card_reader_mode = True
+            self.display.display_two_line_message("Card ID Reader", "Scanning...", "cyan")
+            self.box.beep_once('success')
+            
+            # Create a copy and reset button pressed to avoid side effects
+            new_input_data = dict(old_input_data)
+            new_input_data["button_pressed"] = False
+            return new_input_data
+            
+        # Handle card reader mode if active
+        if self.in_card_reader_mode:
+            # Run card reader mode, exit if it returns False
+            still_in_mode = self.handle_card_reader_mode()
+            if not still_in_mode:
+                self.in_card_reader_mode = False
+                # Update display after exiting card reader mode
+                self.update_display_for_state(self.current_state_name)
+                
+            # Create a copy and reset button pressed to avoid side effects
+            new_input_data = dict(old_input_data)
+            new_input_data["button_pressed"] = False
+            return new_input_data
+        
+        # Normal input handling
         # Check for a card and get its ID
         card_id = self.box.read_RFID_card()
         print("Tried to read card")
@@ -224,19 +265,20 @@ class PortalBoxApplication():
                     print(f"Exception: {e}\n trying again")
                     # Only temporarily show error messages, then restore state
                     prev_display = self.last_displayed_state
-                    self.box.lcd_print("DB Error")
+                    self.display.display_message("DB Error", "red")
                     time.sleep(1)
-                    self.box.lcd_print("Retrying...")
+                    self.display.display_message("Retrying...", "yellow")
                     time.sleep(1)
                     if prev_display:
-                        self.box.lcd_print(prev_display)
+                        self.display.display_message(prev_display)
                     
             new_input_data = {
                 "card_id": card_id,
                 "user_is_authorized": details["user_is_authorized"],              
                 "card_type": details["card_type"],
                 "user_authority_level": details["user_authority_level"],
-                "button_pressed": self.box.has_button_been_pressed()
+                "button_pressed": self.box.has_button_been_pressed(),
+                "pin": details["pin"]
             }
 
             # Log the card reading with the card type and ID
@@ -252,20 +294,7 @@ class PortalBoxApplication():
                 card_type_str = "Training"
             elif new_input_data['card_type'] == CardType.SHUTDOWN_CARD:
                 card_type_str = "Shutdown"
-            print(old_input_data["user_authority_level"])
-            print(not new_input_data["user_is_authorized"])
-            
-            # #auth_str = "Auth" if new_input_data['user_is_authorized'] else "Unauth"
-            # if new_input_data["user_is_authorized"]:
-            #     self.box.setScreenColor("green")
-            # elif new_input_data["user_is_authorized"]:
-            #     self.box.setScreenColor("green")
-            # # elif old_input_data["user_authority_level"]==3 and new_input_data["user_is_authorized"]:
-            # #     self.box.setScreenColor("magenta")
-            # else: 
-            #     self.box.setScreenColor("red")
-        
-            # self.box.lcd_print(f"{card_type_str}-{auth_str}")
+            print(f"Card type: {card_type_str}")
 
         # If no card is present, just update the button
         elif(card_id <= 0):
@@ -276,9 +305,6 @@ class PortalBoxApplication():
                 "user_authority_level": 0,
                 "button_pressed": self.box.has_button_been_pressed()
             }
-            # Reset Button to Idle Blue
-            # if new_input_data["button_pressed"]:
-            #     self.box.setScreenColor("blue")
         # Else just use the old data and update the button
         # i.e., if there is a card, but it's the same as before
         else:
@@ -288,24 +314,107 @@ class PortalBoxApplication():
         print(f"New input data: {new_input_data}")
         return new_input_data
 
-    def update_display(self, state_name):
-        """Update the LCD display with a centered state name"""
-        if state_name == self.last_displayed_state:
+    def handle_card_reader_mode(self):
+        """
+        Special mode for reading RFID cards and displaying their IDs
+        Returns True if still in this mode, False if exiting
+        """
+        try:
+            # Show scanning animation
+            self.display.animate_scanning()
+            
+            # Check for exit button press (* key)
+            if self.box.has_button_been_pressed():
+                print("Exiting card reader mode")
+                self.display.display_two_line_message("Exiting", "Card Reader Mode", "blue")
+                time.sleep(1)
+                return False
+                
+            # Try reading a card
+            card_id = self.box.read_RFID_card()
+            
+            # If card read successful
+            if card_id != -1:
+                # Convert from hex string to decimal integer for display
+                try:
+                    decimal_id = int(card_id, 16)
+                    
+                    # Display the card ID and beep
+                    self.display.display_two_line_message("Card ID:", f"{decimal_id}", "cyan")
+                    self.box.beep_once('success')
+                    
+                    # Wait a moment to show the ID
+                    time.sleep(2)
+                except Exception as e:
+                    print(f"Error converting card ID: {e}")
+                    
+            # Continue in card reader mode
+            return True
+        except Exception as e:
+            print(f"Error in card reader mode: {e}")
+            # Exit card reader mode on error
+            return False
+
+    def update_display_for_state(self, state_name, card_id=-1):
+        """Update the display based on current state and context"""
+        if state_name == self.last_displayed_state and not self.in_card_reader_mode:
             # Don't update if it's already displaying this state
             return
             
-        # Center the state name on the display
-        if len(state_name) > 16:
-            # Truncate if too long
-            display_name = state_name[:16]
-        else:
-            # Center the text
-            padding = (16 - len(state_name)) // 2
-            display_name = " " * padding + state_name
+        self.last_displayed_state = state_name
+        print(f"Updating display for state: {state_name}")
+        
+        if state_name == "IdleNoCard":
+            self.display.display_idle_instructions()
             
-        self.box.lcd_print(display_name)
-        self.last_displayed_state = display_name
-        print(f"LCD updated to: '{display_name}'")
+        elif state_name == "RunningAuthUser":
+            # Display personalized welcome if possible
+            if card_id > 0:
+                self.display.display_welcome(card_id)
+            else:
+                self.display.display_two_line_message("Authorized", "Machine On", "green")
+                
+        elif state_name == "RunningTrainingCard":
+            self.display.display_two_line_message("Training Mode", "Machine On", "green")
+            
+        elif state_name == "RunningProxyCard":
+            self.display.display_two_line_message("Proxy Access", "Machine On", "cyan")
+            
+        elif state_name == "IdleUnauthCard":
+            self.display.display_unauthorized()
+            
+        elif state_name == "RunningNoCard":
+            # Start grace timer if not already started
+            if not hasattr(self, 'grace_timer_started') or not self.grace_timer_started:
+                self.display.start_grace_timer(self.settings["user_exp"]["grace_period"])
+                self.grace_timer_started = True
+            
+        elif state_name == "Setup":
+            self.display.display_message("Setting Up...", "yellow")
+            
+        elif state_name == "Shutdown":
+            self.display.display_message("Shutting Down...", "red")
+            
+        # Other states use default display from their on_enter methods
+        else:
+            # Center the state name on the display
+            if len(state_name) > 16:
+                # Truncate if too long
+                display_name = state_name[:16]
+            else:
+                # Center the text
+                padding = (16 - len(state_name)) // 2
+                display_name = " " * padding + state_name
+                
+            self.display.display_message(display_name)
+
+    def update_grace_display_if_needed(self):
+        """Update grace period countdown if in RunningNoCard state"""
+        if self.current_state_name == "RunningNoCard" and hasattr(self, 'grace_timer_started') and self.grace_timer_started:
+            remaining = self.display.update_grace_display()
+            if remaining <= 0:
+                # Grace period ended, reset flag
+                self.grace_timer_started = False
 
     def get_user_auths(self, card_id):
         '''
@@ -319,7 +428,7 @@ class PortalBoxApplication():
         Stops the program
         '''
         print("Service Exiting")
-        self.box.lcd_print("Shutting down...")
+        self.display.display_message("Shutting down...", "red")
         self.box.cleanup()
 
         if self.equipment_id:
@@ -363,7 +472,7 @@ def load_config(config_file_path=DEFAULT_CONFIG_FILE_PATH):
             "flash_rate": 3,
             "enable_buzzer": True,
             "buzzer_pwm": True,
-            "led_type": "NEOPIXEL"
+            "led_type": "DOTSTAR"
         },
         "user_exp": {
             "grace_period": 10
@@ -375,12 +484,9 @@ def load_config(config_file_path=DEFAULT_CONFIG_FILE_PATH):
         "pins": {
             "INTERLOCK_PIN": 9,
             "BUZZER_PIN": 6,
-            "BUTTON_PIN": 20,
             "RELAY_PIN": 7,
             "DOTSTAR_DATA": 13,
             "DOTSTAR_CLOCK": 12,
-            "ROW_PIN": 17,
-            "COL_PIN": 16,
             "LCD_TX": 5,
             "RFID_SDA": 3,
             "RFID_SCK": 2,
@@ -454,24 +560,14 @@ def main():
             current_state_name = fsm_state.__class__.__name__
             print(f"CURRENT FSM STATE: {current_state_name}")
             service.current_state_name = current_state_name
-            if current_state_name.strip()=="RunningAuthUser":
-                service.box.setScreenColor("green")
-            elif current_state_name.strip()=="RunningTrainingCard":
-                service.box.setScreenColor("green")
-            elif current_state_name.strip()=="RunningProxyCard":
-                service.box.setScreenColor("cyan")
-            elif current_state_name.strip()=="IdleUnauthCard":
-                service.box.setScreenColor("red")
-            elif current_state_name.strip()=="IdleNoCard":
-                service.box.setScreenColor("blue")
-            elif current_state_name.strip()=="RunningNoCard":
-                service.box.setScreenColor("white")
-            elif current_state_name.strip()=="Setup":
-                service.box.setScreenColor("yellow")
-            # Only update LCD if state class has changed
+            
+            # Update display for current state if changed
             if fsm_state.__class__ != last_state_class:
-                service.update_display(current_state_name)
+                service.update_display_for_state(current_state_name, input_data["card_id"])
                 last_state_class = fsm_state.__class__
+            
+            # Update grace period display if needed
+            service.update_grace_display_if_needed()
             
             # Get inputs
             input_data_new = service.get_inputs(input_data)
@@ -484,6 +580,12 @@ def main():
             # Call the state handler which might return a new state
             print(f"Calling FSM state: {fsm_state.__class__.__name__}")
             new_state = fsm_state(input_data)
+            
+            # Skip state machine processing if in card reader mode
+            if service.in_card_reader_mode:
+                service.box.update()
+                time.sleep(0.1)
+                continue
             
             # Check if we need to transition state
             if new_state:
@@ -503,8 +605,10 @@ def main():
                 if not skip_transition:
                     print(f"State transition occurred")
                     fsm_state = new_state
+                    # Reset grace timer flag on state transition
+                    service.grace_timer_started = False
                     # Update display with new state
-                    service.update_display(fsm_state.__class__.__name__)
+                    service.update_display_for_state(fsm_state.__class__.__name__, input_data["card_id"])
                     last_state_class = fsm_state.__class__
             
             print(f"After FSM call, state is: {fsm_state.__class__.__name__}")

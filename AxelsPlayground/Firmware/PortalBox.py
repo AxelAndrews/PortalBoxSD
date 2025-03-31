@@ -5,22 +5,19 @@ from machine import Pin, SoftSPI, I2C # type: ignore
 import time
 
 # Import local modules
-from Button import KeypadButton
+from Keypad import scan_keypad  # Use existing Keypad module
 from RGBLCD import RGBLCD
 from BuzzerController import BuzzerController
 from MFRC522 import MFRC522
-# from NeopixelController import NeoPixelController
+from DotstarController import DotStar
 
 # Default pin definitions for ESP32 (will be overridden by config.json if present)
 DEFAULT_PIN_CONFIG = {
     "INTERLOCK_PIN": 9,
     "BUZZER_PIN": 6,
-    "BUTTON_PIN": 20,
     "RELAY_PIN": 7,
     "DOTSTAR_DATA": 13,
     "DOTSTAR_CLOCK": 12,
-    "ROW_PIN": 17,
-    "COL_PIN": 16,
     "LCD_TX": 5,
     "RFID_SDA": 3,
     "RFID_SCK": 2,
@@ -28,17 +25,7 @@ DEFAULT_PIN_CONFIG = {
     "RFID_MISO": 10,
 }
 
-# Default Colors for RGB
-colors = [
-        (255, 0, 0, "Red"),
-        (0, 255, 0, "Green"),
-        (0, 0, 255, "Blue"),
-        (255, 255, 0, "Yellow"),
-        (255, 0, 255, "Magenta"),
-        (0, 255, 255, "Cyan"),
-        (255, 255, 255, "White")
-    ]
-
+# Define colors
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
@@ -52,6 +39,9 @@ class PortalBox:
     Wrapper to manage peripherals on ESP32
     '''
     def __init__(self, settings):
+        # Store service reference for later user info lookup
+        self.service = None
+        
         # Load pin configuration from settings if available
         self.config = DEFAULT_PIN_CONFIG.copy()
         
@@ -87,7 +77,11 @@ class PortalBox:
         print("Setting up pins")
         self.interlock_pin = Pin(self.config["INTERLOCK_PIN"], Pin.OUT)
         self.relay_pin = Pin(self.config["RELAY_PIN"], Pin.OUT)
-        self.keypad_button = KeypadButton(self.config["ROW_PIN"], self.config["COL_PIN"])
+        
+        # Variables for keypad state tracking
+        self.last_key_state = False
+        self.last_keypad_check = time.ticks_ms()
+        self.last_keys_pressed = []
 
         # Initialize the LCD with conservative timing
         self.lcd = RGBLCD(uart_id=1, tx_pin=5, baud_rate=9600, cols=16, rows=2)
@@ -95,18 +89,15 @@ class PortalBox:
         self.setScreenColor("white")
         print("LCD initialized")
         
-        ## IMPLEMENT NEOPIXEL ASAP
-        ###############################################################
-        # self.neopixels= NeoPixelController(
-        #     pin=self.config["NEOPIXEL_PIN"], 
-        #     numPixels=15,
-        #     brightness=0.2,
-        #     settings=settings
-        # )
-        # self.setNeopixelColor([0, 0, 255])
-        
-        ###############################################################
-        
+        # Initialize DotStar LEDs
+        self.dotstar = DotStar(
+            spi_bus=1,
+            data_pin=self.config["DOTSTAR_DATA"],
+            clock_pin=self.config["DOTSTAR_CLOCK"],
+            num_leds=15,
+            brightness=16
+        )
+        print("DotStar LEDs initialized")
         
         # Initialize buzzer with optional settings
         self.buzzer = BuzzerController(
@@ -151,12 +142,20 @@ class PortalBox:
         except Exception as e:
             print(f"LCD test failed: {e}")
 
+    def set_service(self, service):
+        """Store reference to the service for database access"""
+        self.service = service
+
     def update(self):
         """
         Update method to be called in main loop
         Ensures buzzer effects are processed
         """
         self.buzzer.update()
+        
+        # If DotStar animations are active, update them
+        if self.dotstar:
+            self.dotstar.update_animations()
 
     def lcd_print(self, message):
         '''
@@ -164,9 +163,26 @@ class PortalBox:
         @param message - string to display
         '''
         try:
+            # Split message into lines if it contains newlines
+            lines = message.split('\n')
+            
+            # Clear the display
             self.lcd.clear()
+            time.sleep(0.02)  # Short delay after clear
+            
+            # Print first line
             self.lcd.home()
-            self.lcd.print(message)
+            time.sleep(0.02)  # Short delay after home
+            
+            if len(lines) > 0:
+                self.lcd.print(lines[0])
+                time.sleep(0.02)  # Short delay after print
+            
+            # If there's a second line, position cursor and print it
+            if len(lines) > 1:
+                self.lcd.set_cursor(1, 2)  # Column 1, Row 2 (second line)
+                time.sleep(0.02)  # Short delay after cursor positioning
+                self.lcd.print(lines[1])
         except Exception as e:
             print(f"LCD write error: {e}")
         
@@ -188,17 +204,45 @@ class PortalBox:
     
     def get_button_state(self):
         '''
-        Determine the current button state
-        Returns True if the "1" key on the keypad is pressed
+        Determine if "*" key is currently pressed
+        Returns True if "*" key on the keypad is pressed
         '''
-        return self.keypad_button.is_pressed()
+        try:
+            keys_pressed = scan_keypad()
+            return '*' in keys_pressed
+        except Exception as e:
+            print(f"Keypad scan error: {e}")
+            return False
     
     def has_button_been_pressed(self):
         '''
-        Check if the "1" key on the keypad has been pressed since the last call
-        Implements simple debouncing and edge detection
+        Check if the "*" key on the keypad has been pressed since the last call
+        Implements simple debouncing and edge detection for * key
         '''
-        return self.keypad_button.was_pressed()
+        try:
+            current_time = time.ticks_ms()
+            
+            # Only check if enough time has passed (debounce)
+            if time.ticks_diff(current_time, self.last_keypad_check) > 50:  # 50ms debounce
+                keys_pressed = scan_keypad()
+                
+                # Check for "*" key press
+                star_pressed_now = '*' in keys_pressed
+                star_pressed_before = '*' in self.last_keys_pressed
+                
+                # Store current state for next check
+                self.last_keys_pressed = keys_pressed
+                self.last_keypad_check = current_time
+                
+                # Detect rising edge (button press)
+                if star_pressed_now and not star_pressed_before:
+                    print("* key pressed")
+                    return True
+                    
+            return False
+        except Exception as e:
+            print(f"Button press check error: {e}")
+            return False
     
     def read_RFID_card(self):
         '''
@@ -208,7 +252,6 @@ class PortalBox:
         try:
             maxAttempts = 0
             while maxAttempts != 1:
-                # print(maxAttempts)
                 rdr = MFRC522(spi=self.RFIDReader.spi, cs=self.RFIDReader.cs)
                 uid = ""
                 (stat, tag_type) = rdr.request(rdr.REQIDL)
@@ -291,6 +334,10 @@ class PortalBox:
         self.relay_pin.off()
         self.interlock_pin.off()
         
+        # Turn off DotStar LEDs
+        if self.dotstar:
+            self.dotstar.cleanup()
+        
         # Clear the LCD display
         try:
             self.lcd.clear()
@@ -301,8 +348,8 @@ class PortalBox:
             
         print("Buzzer, display, and GPIO should be turned off")
     
-    # Once Neopixels are working, this should control both at once
     def setScreenColor(self, color):
+        """Set the LCD backlight color"""
         if color=="red":
             self.lcd.set_rgb_color(RED[0], RED[1], RED[2])
         elif color=="blue":
@@ -317,5 +364,3 @@ class PortalBox:
             self.lcd.set_rgb_color(WHITE[0], WHITE[1], WHITE[2])
         elif color=="cyan":
             self.lcd.set_rgb_color(CYAN[0], CYAN[1], CYAN[2])
-    # def setNeopixelColor(self, color):
-    #     self.neopixels.set_color(color)
