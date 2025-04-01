@@ -382,12 +382,16 @@ class Database:
         card_type = response_details.get("card_type", -1)
         if card_type is None:
             card_type = -1
+
+        pin = response_details.get("pin", 0)
+        if pin is None:
+            pin = -1
             
         details = {
             "user_is_authorized": self.is_user_authorized_for_equipment_type(response_details),
             "card_type": card_type,
             "user_authority_level": int(user_role),
-            "pin": -1
+            "pin": pin
         }
             
         return details
