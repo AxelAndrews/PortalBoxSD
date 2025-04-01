@@ -256,7 +256,7 @@ class AccessComplete(State):
     the power to the machine
     """
     def __call__(self, input_data):
-        # The call should immediately transition to IdleNoCard after cleanup
+        # The call should immediately transition to IdleNoCard after 
         return self.next_state(IdleNoCard, input_data)
 
     def on_enter(self, input_data):

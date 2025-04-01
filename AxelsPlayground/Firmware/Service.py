@@ -236,10 +236,11 @@ class PortalBoxApplication():
             not self.in_certification_mode):
             
             print("*** Entering certification mode ***")
-            # Enter card reader mode
+            # Enter certification mode
             self.in_card_reader_mode = False
             self.in_certification_mode = True
-            self.display.display_two_line_message("Certification", "Scanning...", "cyan")
+            self.cert_mode_state = 'init'  # Initialize state machine
+            self.display.display_two_line_message("Admin Mode", "Starting...", "purple")
             self.box.beep_once('success')
             
             # Create a copy and reset button pressed to avoid side effects
@@ -250,12 +251,18 @@ class PortalBoxApplication():
         # # Handle card reader mode if active
         if self.in_card_reader_mode:
             # Run card reader mode, exit if it returns False
-            still_in_mode = self.handle_card_reader_mode()
-            # time.sleep(0.0001)
-            if not still_in_mode:
+            read_id = self.handle_card_reader_mode()
+            time.sleep(0.1)
+            if read_id == -2:
                 self.in_card_reader_mode = False
                 # Update display after exiting card reader mode
                 self.update_display_for_state(self.current_state_name)
+            elif read_id == old_input_data['card_id']:
+                pass
+            elif read_id == -1:
+                self.display.display_two_line_message("Scanning Mode", "Insert Card", 'cyan')
+            else:
+                self.display.display_two_line_message("Scanning Mode", f'ID: {read_id}', 'cyan' )
             new_input_data = dict(old_input_data)
             new_input_data["button_pressed"] = False
             return new_input_data
@@ -311,7 +318,8 @@ class PortalBoxApplication():
                 "user_is_authorized": details["user_is_authorized"],              
                 "card_type": details["card_type"],
                 "user_authority_level": details["user_authority_level"],
-                "button_pressed": self.box.has_button_been_pressed()[0]
+                "button_pressed": self.box.has_button_been_pressed()[0],
+                "pin": details['pin']
             }
 
             new_input_data["user_is_authorized"]=self.verifyPin(new_input_data["user_is_authorized"])
@@ -395,7 +403,7 @@ class PortalBoxApplication():
                 self.display.display_two_line_message("Exiting", "Card Reader Mode", "blue")
                 time.sleep(1)
                 self.display.display_message("Press * for Info")
-                return False
+                return -2
                 
             # Try reading a card
             card_id = self.box.read_RFID_card()
@@ -405,18 +413,19 @@ class PortalBoxApplication():
                 # Convert from hex string to decimal integer for display
                 try:
                     decimal_id = int(card_id, 16)
+                    return decimal_id
                     
                     # Display the card ID and beep
-                    self.display.display_two_line_message("Card ID:", f"{decimal_id}", "cyan")
-                    self.box.beep_once('success')
+                    # self.display.display_two_line_message("Card ID:", f"{decimal_id}", "cyan")
+                    # self.box.beep_once('success')
                     
-                    # Wait a moment to show the ID
-                    time.sleep(2)
+                    # # Wait a moment to show the ID
+                    # time.sleep(.1)
                 except Exception as e:
                     print(f"Error converting card ID: {e}")
                     
             # Continue in card reader mode
-            return True
+            return -1
         except Exception as e:
             print(f"Error in card reader mode: {e}")
             # Exit card reader mode on error
@@ -424,43 +433,194 @@ class PortalBoxApplication():
         
     def handle_certification_mode(self):
         """
-        Special mode for reading RFID cards and displaying their IDs
+        Admin mode for granting machine access authorization to new users
+        This mode requires an admin/trainer card followed by the user card to be authorized
         Returns True if still in this mode, False if exiting
         """
         try:
-            # Show scanning animation
-            self.display.animate_scanning("Certification")
+            # Step 1: Initial state - waiting for admin card
+            if not hasattr(self, 'cert_mode_state') or self.cert_mode_state == 'init':
+                self.cert_mode_state = 'waiting_admin'
+                self.admin_card_id = None
+                self.user_card_id = None
+                self.display.display_two_line_message("Admin Mode", "Scan Admin Card", "purple")
             
             # Check for exit button press (* key)
-            if "*" in Keypad.scan_keypad() and not self.box.has_button_been_pressed()[0]:
-                print("Exiting card reader mode")
-                self.display.display_two_line_message("Exiting", "Certification", "blue")
+            if "*" in Keypad.scan_keypad():
+                print("Exiting admin certification mode")
+                self.display.display_two_line_message("Exiting", "Admin Mode", "blue")
                 time.sleep(1)
-                self.display.display_message("Press * for Info")
+                self.cert_mode_state = 'init'  # Reset state for next time
                 return False
-                
-            # Try reading a card
-            card_id = self.box.read_RFID_card()
             
-            # If card read successful
-            while card_id != -1:
-                self.display.display_message("Card Found", "blue")
-                # Convert from hex string to decimal integer for display
-                try:
-                    if "#" in Keypad.scan_keypad():
-                        self.display.display_two_line_message("Certification","Successful", "green")
+            # Step 2: Waiting for admin card
+            if self.cert_mode_state == 'waiting_admin':
+                # Show scanning animation
+                self.display.animate_scanning("Scan Admin Card")
+                
+                # Try reading a card
+                card_id = self.box.read_RFID_card()
+                
+                # If card read successful
+                if card_id != -1:
+                    try:
+                        decimal_id = int(card_id, 16)
+                        
+                        # Verify this is an admin/trainer card
+                        details = self.db.get_card_details(decimal_id, self.equipment_type_id)
+                        
+                        if details["user_authority_level"] >= 3:  # Admin or trainer level
+                            # Admin card accepted
+                            self.admin_card_id = decimal_id
+                            self.cert_mode_state = 'waiting_user'
+                            self.display.display_two_line_message("Admin Verified", "Remove Card", "green")
+                            self.box.beep_once('success')
+                            time.sleep(2)
+                            
+                            # Wait for admin to remove card
+                            self.display.display_two_line_message("Admin Mode", "Please Remove Card", "yellow")
+                            
+                            # Wait for card removal
+                            waiting_removal = True
+                            start_time = time.time()
+                            while waiting_removal and (time.time() - start_time < 10):  # 10 second timeout
+                                if self.box.read_RFID_card() == -1:  # No card detected
+                                    waiting_removal = False
+                                time.sleep(0.2)
+                            
+                            self.display.display_two_line_message("Admin Mode", "Scan User Card", "yellow")
+                        else:
+                            # Not an admin card
+                            self.display.display_two_line_message("Not Admin Card", "Need Admin Card", "red")
+                            self.box.beep_once('error')
+                            time.sleep(2)
+                            self.display.display_two_line_message("Admin Mode", "Scan Admin Card", "purple")
+                    except Exception as e:
+                        print(f"Error processing admin card: {e}")
+                        self.display.display_two_line_message("Card Error", "Try Again", "red")
+                        self.box.beep_once('error')
                         time.sleep(1)
-                        self.display.display_message("Press * for Info", "blue")
-                        return False
+            
+            # Step 3: Waiting for user card
+            elif self.cert_mode_state == 'waiting_user':
+                # Show scanning animation
+                self.display.animate_scanning("Scan User Card")
+                
+                # Try reading a card
+                card_id = self.box.read_RFID_card()
+                
+                # If card read successful
+                if card_id != -1:
+                    try:
+                        decimal_id = int(card_id, 16)
+                        
+                        # Verify this is a user card and not already authorized
+                        details = self.db.get_card_details(decimal_id, self.equipment_type_id)
+                        
+                        if details["card_type"] == CardType.USER_CARD:
+                            if details["user_is_authorized"]:
+                                # Already authorized
+                                self.display.display_two_line_message("Already Auth", "No Change Needed", "yellow")
+                                self.box.beep_once('warning')
+                                time.sleep(2)
+                                self.cert_mode_state = 'init'
+                                return False
+                            else:
+                                # User needs authorization - proceed to update
+                                self.user_card_id = decimal_id
+                                self.cert_mode_state = 'updating'
+                                self.display.display_two_line_message("User Card OK", "Authorizing...", "blue")
+                        else:
+                            # Not a user card
+                            self.display.display_two_line_message("Not User Card", "Need User Card", "red")
+                            self.box.beep_once('error')
+                            time.sleep(2)
+                            self.display.display_two_line_message("Admin Mode", "Scan User Card", "yellow")
+                    except Exception as e:
+                        print(f"Error processing user card: {e}")
+                        self.display.display_two_line_message("Card Error", "Try Again", "red")
+                        self.box.beep_once('error')
+                        time.sleep(1)
+            
+            # Step 4: Updating authorization
+            elif self.cert_mode_state == 'updating':
+                try:
+                    # Make API call to update user authorization
+                    success = self.update_user_authorization(self.user_card_id)
+                    
+                    if success:
+                        self.display.display_two_line_message("Authorization", "Successful!", "green")
+                        self.box.beep_once('success')
                     else:
-                        card_id = self.box.read_RFID_card()
+                        self.display.display_two_line_message("Auth Failed", "DB Error", "red")
+                        self.box.beep_once('error')
+                    
+                    time.sleep(2)
+                    self.cert_mode_state = 'init'  # Reset for next time
+                    return False
                 except Exception as e:
-                    print(f"Error in Certification: {e}")
+                    print(f"Error updating authorization: {e}")
+                    self.display.display_two_line_message("Update Error", "Try Again Later", "red")
+                    self.box.beep_once('error')
+                    time.sleep(2)
+                    self.cert_mode_state = 'init'  # Reset for next time
+                    return False
+            
             # Continue in certification mode
             return True
         except Exception as e:
-            print(f"Error in card reader mode: {e}")
-            # Exit card reader mode on error
+            print(f"Error in certification mode: {e}")
+            # Exit certification mode on error
+            return False
+        
+    def update_user_authorization(self, user_card_id):
+        """
+        Updates a user's authorization for the current equipment type
+        
+        Args:
+            user_card_id: The card ID of the user to authorize
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            print(f"Updating authorization for user card {user_card_id} on equipment type {self.equipment_type_id}")
+            
+            # First, get the user ID associated with this card
+            user_info = self.db.get_user(user_card_id)
+            if not user_info or len(user_info) < 2 or not user_info[0]:
+                print("Failed to retrieve user info from card")
+                return False
+                
+            # Get user ID from card if possible
+            user_id = None
+            try:
+                # Fetch user details from the card - this is implementation-dependent
+                # This might require an additional API call to get the user ID
+                # For now, we'll simulate this by getting the user's info from the card
+                
+                # Try to get existing authorizations
+                current_details = self.db.get_card_details(user_card_id, self.equipment_type_id)
+                
+                # We need to add our current equipment type to the user's authorizations
+                # Make API call to update authorizations using our Database class method
+                response = self.db.add_user_authorization(user_card_id, self.equipment_type_id)
+                
+                # Check for success
+                if response is True or (isinstance(response, str) and "success" in response.lower()):
+                    print(f"Successfully authorized user for equipment type {self.equipment_type_id}")
+                    return True
+                else:
+                    print(f"Authorization failed with response: {response}")
+                    return False
+                    
+            except Exception as e:
+                print(f"Error updating authorization: {e}")
+                return False
+                
+            return False
+        except Exception as e:
+            print(f"Exception in update_user_authorization: {e}")
             return False
 
     def update_display_for_state(self, state_name, card_id=-1):

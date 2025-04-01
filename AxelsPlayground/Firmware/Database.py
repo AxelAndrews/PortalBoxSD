@@ -361,7 +361,8 @@ class Database:
         default_details = {
             "user_is_authorized": False,
             "card_type": CardType.INVALID_CARD,
-            "user_authority_level": 0
+            "user_authority_level": 0,
+            "pin": -1
         }
         
         if response is None:
@@ -385,7 +386,8 @@ class Database:
         details = {
             "user_is_authorized": self.is_user_authorized_for_equipment_type(response_details),
             "card_type": card_type,
-            "user_authority_level": int(user_role)
+            "user_authority_level": int(user_role),
+            "pin": -1
         }
             
         return details
@@ -497,3 +499,38 @@ class Database:
         
         # Any non-None response is considered success
         return response is not None
+    
+    def add_user_authorization(self, card_id, equipment_type_id):
+        '''
+        Adds an authorization for a specific equipment type to a user
+        
+        @param card_id: The ID of the user's card
+        @param equipment_type_id: The ID of the equipment type to authorize
+        @return: True if successful, False otherwise
+        '''
+        print(f"Adding authorization for card {card_id} on equipment type {equipment_type_id}")
+        
+        params = {
+            "mode": "add_authorization",
+            "card_id": card_id,
+            "equipment_type_id": equipment_type_id
+        }
+        
+        response = self._make_api_request("POST", params)
+        
+        if response is None:
+            print("API error in add_user_authorization")
+            return False
+        elif isinstance(response, bool):
+            return response
+        elif isinstance(response, (str, int)):
+            try:
+                # Try to convert to int/bool if possible
+                if isinstance(response, str) and "success" in response.lower():
+                    return True
+                else:
+                    return bool(int(response))
+            except (ValueError, TypeError):
+                return False
+        else:
+            return False
