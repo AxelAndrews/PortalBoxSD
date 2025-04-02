@@ -251,18 +251,18 @@ class PortalBoxApplication():
         # # Handle card reader mode if active
         if self.in_card_reader_mode:
             # Run card reader mode, exit if it returns False
-            read_id = self.handle_card_reader_mode()
-            time.sleep(0.1)
-            if read_id == -2:
-                self.in_card_reader_mode = False
-                # Update display after exiting card reader mode
-                self.update_display_for_state(self.current_state_name)
-            elif read_id == old_input_data['card_id']:
-                pass
-            elif read_id == -1:
-                self.display.display_two_line_message("Scanning Mode", "Insert Card", 'cyan')
-            else:
-                self.display.display_two_line_message("Scanning Mode", f'ID: {read_id}', 'cyan' )
+            self.in_card_reader_mode=self.handle_card_reader_mode(old_input_data['card_id'])
+            # time.sleep(0.1)
+            # if read_id == -2:
+            #     self.in_card_reader_mode = False
+            #     # Update display after exiting card reader mode
+            #     self.update_display_for_state(self.current_state_name)
+            # elif read_id == old_input_data['card_id']:
+            #     pass
+            # elif read_id == -1:
+            #     self.display.display_two_line_message("Scanning Mode", "Insert Card", 'cyan')
+            # else:
+            #     self.display.display_two_line_message("Scanning Mode", f'ID: {read_id}', 'cyan' )
             new_input_data = dict(old_input_data)
             new_input_data["button_pressed"] = False
             return new_input_data
@@ -388,49 +388,28 @@ class PortalBoxApplication():
                     self.display.display_message("Incorrect Pin", "red")
                     return False
                     break
-    def handle_card_reader_mode(self):
-        """
-        Special mode for reading RFID cards and displaying their IDs
-        Returns True if still in this mode, False if exiting
-        """
-        try:
-            # Show scanning animation
-            self.display.animate_scanning("Card ID Reader")
-            
-            # Check for exit button press (* key)
+                
+    def handle_card_reader_mode(self, old_input):
+        old_card_id=old_input
+        while True:
+            card_id = self.box.read_RFID_card()
             if "*" in Keypad.scan_keypad() and not self.box.has_button_been_pressed()[0]:
                 print("Exiting card reader mode")
                 self.display.display_two_line_message("Exiting", "Card Reader Mode", "blue")
                 time.sleep(1)
                 self.display.display_message("Press * for Info")
-                return -2
+                return False
+            if card_id == -1 and old_card_id==-1:
+                self.display.animate_scanning("Card ID Reader")
+            elif card_id == old_card_id:
+                pass
+            else:
+                decimalVal=int(str(card_id),16)
+                self.display.display_two_line_message("Card ID:", f"{decimalVal}", "cyan")
                 
-            # Try reading a card
-            card_id = self.box.read_RFID_card()
-            
-            # If card read successful
-            if card_id != -1:
-                # Convert from hex string to decimal integer for display
-                try:
-                    decimal_id = int(card_id, 16)
-                    return decimal_id
-                    
-                    # Display the card ID and beep
-                    # self.display.display_two_line_message("Card ID:", f"{decimal_id}", "cyan")
-                    # self.box.beep_once('success')
-                    
-                    # # Wait a moment to show the ID
-                    # time.sleep(.1)
-                except Exception as e:
-                    print(f"Error converting card ID: {e}")
-                    
-            # Continue in card reader mode
-            return -1
-        except Exception as e:
-            print(f"Error in card reader mode: {e}")
-            # Exit card reader mode on error
-            return False
-        
+            old_card_id= card_id
+        return True
+    
     def handle_certification_mode(self):
         """
         Admin mode for granting machine access authorization to new users
@@ -676,7 +655,7 @@ class PortalBoxApplication():
                 padding = (16 - len(state_name)) // 2
                 display_name = " " * padding + state_name
                 
-            self.display.display_message(display_name)
+            # self.display.display_message(display_name)
 
     def update_grace_display_if_needed(self):
         """Update grace period countdown if in RunningNoCard state"""
