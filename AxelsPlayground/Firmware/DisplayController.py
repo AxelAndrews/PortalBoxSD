@@ -191,7 +191,7 @@ class DisplayController:
     def display_idle_instructions(self):
         """Display instructions in idle mode"""
         try:
-            self.display_two_line_message("Scan Card to Use", "Press * for Info", "blue")
+            self.display_two_line_message("Welcome!", "Scan Card to Use", "blue")
         except Exception as e:
             print(f"Idle instructions error: {e}")
     

@@ -223,7 +223,8 @@ class PortalBoxApplication():
             # Enter card reader mode
             self.in_card_reader_mode = True
             self.in_certification_mode= False
-            self.display.display_two_line_message("Card ID Reader", "Scanning...", "cyan")
+            # self.display.display_two_line_message("Card ID Reader", "Scanning...", "cyan")
+            self.display.display_message("Enter Card", "cyan")
             self.box.beep_once('success')
             
             # Create a copy and reset button pressed to avoid side effects
@@ -244,25 +245,6 @@ class PortalBoxApplication():
             self.box.beep_once('success')
             
             # Create a copy and reset button pressed to avoid side effects
-            new_input_data = dict(old_input_data)
-            new_input_data["button_pressed"] = False
-            return new_input_data
-            
-        # # Handle card reader mode if active
-        if self.in_card_reader_mode:
-            # Run card reader mode, exit if it returns False
-            self.in_card_reader_mode=self.handle_card_reader_mode(old_input_data['card_id'])
-            # time.sleep(0.1)
-            # if read_id == -2:
-            #     self.in_card_reader_mode = False
-            #     # Update display after exiting card reader mode
-            #     self.update_display_for_state(self.current_state_name)
-            # elif read_id == old_input_data['card_id']:
-            #     pass
-            # elif read_id == -1:
-            #     self.display.display_two_line_message("Scanning Mode", "Insert Card", 'cyan')
-            # else:
-            #     self.display.display_two_line_message("Scanning Mode", f'ID: {read_id}', 'cyan' )
             new_input_data = dict(old_input_data)
             new_input_data["button_pressed"] = False
             return new_input_data
@@ -322,7 +304,17 @@ class PortalBoxApplication():
                 "pin": details['pin']
             }
 
-            new_input_data["user_is_authorized"]=self.verifyPin(new_input_data["user_is_authorized"])
+            new_input_data["user_is_authorized"]=self.verifyPin(new_input_data["user_is_authorized"],new_input_data["pin"])
+                    # # Handle card reader mode if active
+            if self.in_card_reader_mode and new_input_data["user_is_authorized"]:
+                # Run card reader mode, exit if it returns False
+                self.in_card_reader_mode=self.handle_card_reader_mode(old_input_data['card_id'])
+                new_input_data = dict(old_input_data)
+                new_input_data["button_pressed"] = False
+                return new_input_data
+            else:
+                self.in_card_reader_mode=False
+                return new_input_data
                     
             # Log the card reading with the card type and ID
             print(f"Card of type: {new_input_data['card_type']} with ID: {new_input_data['card_id']} was read")
@@ -346,7 +338,8 @@ class PortalBoxApplication():
                 "user_is_authorized": False,
                 "card_type": CardType.INVALID_CARD,
                 "user_authority_level": 0,
-                "button_pressed": self.box.has_button_been_pressed()[0]
+                "button_pressed": self.box.has_button_been_pressed()[0],
+                "pin": -1
             }
         # Else just use the old data and update the button
         # i.e., if there is a card, but it's the same as before
@@ -357,7 +350,7 @@ class PortalBoxApplication():
         print(f"New input data: {new_input_data}")
         return new_input_data
     
-    def verifyPin(self, isAuthorized):
+    def verifyPin(self, isAuthorized, userPin):
         if isAuthorized == True:
             attempts = 3  # Start with 3 attempts
             self.display.display_two_line_message("Please Enter Pin", "Attempts:" + str(attempts), "blue")
@@ -371,9 +364,9 @@ class PortalBoxApplication():
                         self.display.display_message("Pin:" + currPin, "blue")
                         self.display.display_two_line_message("Pin:" + currPin, "Attempts:" + str(attempts), "blue")
                     time.sleep(0.0001)  # Small delay to avoid excessive CPU usage
-
+                print(userPin)
                 # Check if the PIN is "0000" or if we've tried 3 times without success
-                if currPin == "0000":  # If the entered PIN is "0000", break out of the loop
+                if currPin == userPin:  # If the entered PIN is "0000", break out of the loop
                     return True
                     break
                 elif len(currPin) == 4 and attempts > 1:
@@ -397,7 +390,9 @@ class PortalBoxApplication():
                 print("Exiting card reader mode")
                 self.display.display_two_line_message("Exiting", "Card Reader Mode", "blue")
                 time.sleep(1)
-                self.display.display_message("Press * for Info")
+                # self.display_two_line_message("Scan Card to Use", "Enter a Card", "blue")
+                self.display_two_line_message("Welcome!", "Scan Card to Use", "blue")
+                # self.display_message
                 return False
             if card_id == -1 and old_card_id==-1:
                 self.display.animate_scanning("Card ID Reader")
@@ -425,7 +420,7 @@ class PortalBoxApplication():
                 self.display.display_two_line_message("Admin Mode", "Scan Admin Card", "purple")
             
             # Check for exit button press (* key)
-            if "*" in Keypad.scan_keypad():
+            if "#   " in Keypad.scan_keypad():
                 print("Exiting admin certification mode")
                 self.display.display_two_line_message("Exiting", "Admin Mode", "blue")
                 time.sleep(1)
@@ -447,8 +442,9 @@ class PortalBoxApplication():
                         
                         # Verify this is an admin/trainer card
                         details = self.db.get_card_details(decimal_id, self.equipment_type_id)
+                        details["user_is_authorized"]=self.verifyPin(details["user_is_authorized"],details["pin"])
                         
-                        if details["user_authority_level"] >= 3:  # Admin or trainer level
+                        if details["user_authority_level"] >= 3 and details["user_is_authorized"]:  # Admin or trainer level
                             # Admin card accepted
                             self.admin_card_id = decimal_id
                             self.cert_mode_state = 'waiting_user'
@@ -457,7 +453,7 @@ class PortalBoxApplication():
                             time.sleep(2)
                             
                             # Wait for admin to remove card
-                            self.display.display_two_line_message("Admin Mode", "Please Remove Card", "yellow")
+                            self.display.display_two_line_message("Admin Mode", "Remove Card", "yellow")
                             
                             # Wait for card removal
                             waiting_removal = True
