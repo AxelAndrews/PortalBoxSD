@@ -391,7 +391,8 @@ class PortalBoxApplication():
                 self.display.display_two_line_message("Exiting", "Card Reader Mode", "blue")
                 time.sleep(1)
                 # self.display_two_line_message("Scan Card to Use", "Enter a Card", "blue")
-                self.display_two_line_message("Welcome!", "Scan Card to Use", "blue")
+                self.display.display_message("", "blue")
+                self.display.display_two_line_message("Welcome!", "Scan Card to Use", "blue")
                 # self.display_message
                 return False
             if card_id == -1 and old_card_id==-1:

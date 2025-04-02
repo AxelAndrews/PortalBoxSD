@@ -5,7 +5,7 @@ import array
 
 # Keypad configuration for a 3x4 matrix
 cols = [Pin(x, Pin.IN, Pin.PULL_UP) for x in (22, 15, 20)]  # MicroPython pin numbers
-rows = [Pin(x, Pin.OUT) for x in (23, 19, 18, 21)]
+rows = [Pin(x, Pin.OUT) for x in (23, 18, 19, 21)]
 
 # Define the key map (rows x columns)
 keys = ((1, 2, 3), (4, 5, 6), (7, 8, 9), ('*', 0, '#'))

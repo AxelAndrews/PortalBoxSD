@@ -3,7 +3,7 @@ import time
 import json
 from machine import Pin
 
-# Import necessary modules
+# # Import necessary modules
 from Keypad import scan_keypad
 from RGBLCD import RGBLCD
 
@@ -21,6 +21,7 @@ def load_config(config_file_path="config.json"):
                 "LCD_TX": 5
             }
         }
+
 
 def main():
     print("Starting LCD and Keypad test")
@@ -51,7 +52,7 @@ def main():
     time.sleep(0.05)
     lcd.print("Press keys...")
     
-    # Main loop for keypad test
+    # # Main loop for keypad test
     print("Testing keypad...")
     try:
         while True:
