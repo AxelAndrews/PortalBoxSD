@@ -6,7 +6,7 @@ Based on the PortalBox implementation but optimized for MicroPython on ESP32
 """
 import time
 import math
-from machine import SPI, Pin
+from machine import SPI, Pin, SoftSPI
 
 # Color constants
 BLACK = (0, 0, 0)
@@ -30,7 +30,7 @@ class DotStar:
     - End frame: 4 bytes of 0xFF (or (n/2) / 16 bytes of 0x00 for SK9822)
     """
     
-    def __init__(self, spi_bus=0, data_pin=13, clock_pin=12, num_leds=15, brightness=16):
+    def __init__(self, spi_bus=1, data_pin=13, clock_pin=12, num_leds=15, brightness=16):
         """
         Initialize the DotStar controller
         
@@ -48,12 +48,13 @@ class DotStar:
         print("Starting.........")
         # Configure SPI bus
         self.spi = SPI(spi_bus, 
-                       baudrate=1000000,  # 1 MHz
-                       polarity=0, 
-                       phase=0,
-                       sck=Pin(clock_pin),
-                       mosi=Pin(data_pin),
-                       miso=Pin(4))  # No MISO needed for DotStar
+                    baudrate=1000000,  # 1 MHz
+                    polarity=0, 
+                    phase=0,
+                    sck=Pin(clock_pin),
+                    mosi=Pin(data_pin),
+                    miso=Pin(4))  # No MISO needed for DotStar
+        
         
         print("Made SPI Bus for Dotstars")
         

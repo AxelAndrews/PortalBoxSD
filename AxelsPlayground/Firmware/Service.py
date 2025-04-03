@@ -184,8 +184,12 @@ class PortalBoxApplication():
             self.allow_proxy = profile[6]
         
         print(f"Discovered identity. Type: {self.equipment_type}({self.equipment_type_id}) Timeout: {self.timeout_minutes} m Allows Proxy: {self.allow_proxy}")
-        self.display.display_two_line_message(f"{self.equipment_type}", 
-                                             f"Timeout: {self.timeout_minutes}m", "cyan")
+        if self.timeout_minutes==0:
+            self.display.display_two_line_message(f"{self.equipment_type}", 
+                                                f"Timeout: {self.timeout_minutes}m", "cyan")
+        else:
+            self.display.display_two_line_message(f"No", 
+                                                f"Timeout", "cyan")
         time.sleep(1)
         
         # Log that we're started
@@ -352,7 +356,12 @@ class PortalBoxApplication():
 
         print(f"New input data: {new_input_data}")
         return new_input_data
-    
+    def loopRainbowCycle(self):
+        currCard=self.box.read_RFID_card()
+        while currCard == -1:
+            self.display.set_color("blue")
+            currCard=self.box.read_RFID_card()
+            
     def verifyPin(self, isAuthorized, userPin):
         if isAuthorized == True:
             attempts = 3  # Start with 3 attempts
@@ -364,10 +373,11 @@ class PortalBoxApplication():
                     if button_pressed and isinstance(button_pressed[0], int):  # Check if the list has a number
                         digit = str(button_pressed[0])  # Convert the number to a string
                         currPin += digit  # Append the digit to the PIN
-                        self.display.display_message("Pin:" + currPin, "blue")
-                        self.display.display_two_line_message("Pin:" + currPin, "Attempts:" + str(attempts), "blue")
+                        pinStar="*"*len(currPin)
+                        self.display.display_message("Pin:" + pinStar, "blue")
+                        self.display.display_two_line_message("Pin:" + pinStar, "Attempts:" + str(attempts), "blue")
                     time.sleep(0.0001)  # Small delay to avoid excessive CPU usage
-                print(userPin)
+                
                 # Check if the PIN is "0000" or if we've tried 3 times without success
                 if currPin == userPin:  # If the entered PIN is "0000", break out of the loop
                     return True
@@ -398,6 +408,7 @@ class PortalBoxApplication():
                 # self.display_two_line_message("Scan Card to Use", "Enter a Card", "blue")
                 # self.display.display_message("", "blue")
                 self.display.display_two_line_message("Welcome!", "Scan Card to Use", "blue")
+                self.loopRainbowCycle()
                 return False
             if card_id == -1 and old_card_id==-1:
                 self.display.animate_scanning("Card ID Reader")
@@ -513,6 +524,7 @@ class PortalBoxApplication():
                                 time.sleep(1)
                                 self.display.display_two_line_message("Welcome!", "Scan Card to Use", "blue")
                                 self.cert_mode_state = 'init'  # Reset state for next time
+                                self.loopRainbowCycle()
                                 return False
                             else:
                                 # User needs authorization - proceed to update
