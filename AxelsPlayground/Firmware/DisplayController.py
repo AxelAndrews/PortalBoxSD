@@ -49,14 +49,14 @@ class DisplayController:
             self.last_color = color_name
             self.box.setScreenColor(color_name)
             
-            # Use existing dotstar if available
-            if hasattr(self.box, 'dotstar'):
-                color = self.colors.get(color_name.lower(), (0, 0, 255))# Default to blue
-                if color_name.lower()=="blue":
-                    self.box.dotstar.rainbow_cycle(1000)
-                else:
-                    self.box.dotstar.fill(color)
-                self.box.dotstar.show()
+            # # Use existing dotstar if available
+            # if hasattr(self.box, 'dotstar'):
+            #     color = self.colors.get(color_name.lower(), (0, 0, 255))# Default to blue
+            #     if color_name.lower()=="blue":
+            #         self.box.dotstar.rainbow_cycle(1000)
+            #     else:
+            #         self.box.dotstar.fill(color)
+            #     self.box.dotstar.show()
         except Exception as e:
             print(f"Color setting error: {e}")
     

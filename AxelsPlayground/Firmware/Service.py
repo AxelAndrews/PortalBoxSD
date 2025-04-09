@@ -219,15 +219,11 @@ class PortalBoxApplication():
         if (self.current_state_name == "IdleNoCard" and 
             "*" in Keypad.scan_keypad() and 
             not self.in_card_reader_mode):
-        # if (self.current_state_name == "IdleNoCard" and 
-        #     "*" in self.box.has_button_been_pressed()[1] and 
-        #     not self.in_card_reader_mode):
             
             print("*** Entering card reader mode ***")
             # Enter card reader mode
             self.in_card_reader_mode = True
             self.in_certification_mode= False
-            # self.display.display_two_line_message("Card ID Reader", "Scanning...", "cyan")
             self.display.display_two_line_message("Admin Card","Required", "cyan")
             self.box.beep_once('success')
             
@@ -356,6 +352,98 @@ class PortalBoxApplication():
 
         print(f"New input data: {new_input_data}")
         return new_input_data
+    
+    def get_inputs_padless(self, old_input_data):
+        """
+        Gets new inputs for the FSM and returns the dictionary
+
+        @returns a dictionary of the form
+                "card_id": (int)The card ID which was read,
+                "user_is_authorized": (boolean) Whether or not the user is authorized,
+                    for the current machine
+                "card_type": (CardType enum) the type of card,
+                "user_authority_level": (int) The authority of the user, 1 for normal user, 2 for trainer, 3 for admin
+                "button_pressed": (boolean) whether or not the button has been
+                    pressed since the last time it was checked
+        """
+        print("Getting inputs for FSM")
+        
+        # Normal input handling
+        # Check for a card and get its ID
+        card_id = self.box.read_RFID_card()
+        print("Tried to read card")
+        print(card_id)
+        
+        # Convert hex string to int if card was read
+        card_id = int(card_id, 16) if card_id != -1 else -1
+        
+        # If a card is present, and old_input_data showed either no card present, or a different card present
+        if(card_id > 0 and card_id != old_input_data["card_id"]):
+            print(f"Card with ID: {card_id} read, Getting info from DB")
+            
+            # Briefly show card ID but don't overwrite state display
+            temp_lcd = f"Card: {card_id}"
+            print(temp_lcd)
+            # Don't update the LCD here to avoid interfering with state display
+            
+            while True:
+                try:
+                    details = self.db.get_card_details(card_id, self.equipment_type_id)
+                    break
+                except Exception as e:
+                    print(f"Exception: {e}\n trying again")
+                    # Only temporarily show error messages, then restore state
+                    prev_display = self.last_displayed_state
+                    self.display.display_message("DB Error", "red")
+                    time.sleep(1)
+                    self.display.display_message("Retrying...", "yellow")
+                    time.sleep(1)
+                    if prev_display:
+                        self.display.display_message(prev_display)
+                    
+            new_input_data = {
+                "card_id": card_id,
+                "user_is_authorized": details["user_is_authorized"],              
+                "card_type": details["card_type"],
+                "user_authority_level": details["user_authority_level"],
+                "button_pressed": self.box.has_button_been_pressed(),
+                "pin": details['pin']
+            }
+                    
+            # Log the card reading with the card type and ID
+            print(f"Card of type: {new_input_data['card_type']} with ID: {new_input_data['card_id']} was read")
+            
+            # Create card type debug info for log but don't show on LCD
+            card_type_str = "Unknown"
+            if new_input_data['card_type'] == CardType.USER_CARD:
+                card_type_str = "User"
+            elif new_input_data['card_type'] == CardType.PROXY_CARD:
+                card_type_str = "Proxy"
+            elif new_input_data['card_type'] == CardType.TRAINING_CARD:
+                card_type_str = "Training"
+            elif new_input_data['card_type'] == CardType.SHUTDOWN_CARD:
+                card_type_str = "Shutdown"
+            print(f"Card type: {card_type_str}")
+
+        # If no card is present, just update the button
+        elif(card_id <= 0):
+            new_input_data = {
+                "card_id": -1,
+                "user_is_authorized": False,
+                "card_type": CardType.INVALID_CARD,
+                "user_authority_level": 0,
+                "button_pressed": self.box.has_button_been_pressed(),
+                "pin": -1
+            }
+        # Else just use the old data and update the button
+        # i.e., if there is a card, but it's the same as before
+        else:
+            new_input_data = dict(old_input_data)  # Create a copy of the dictionary
+            new_input_data["button_pressed"] = self.box.has_button_been_pressed()
+
+        print(f"New input data: {new_input_data}")
+        return new_input_data
+    
     def loopRainbowCycle(self):
         currCard=self.box.read_RFID_card()
         while currCard == -1:
@@ -372,6 +460,7 @@ class PortalBoxApplication():
                     button_pressed = self.box.has_button_been_pressed()[1]  # Get the pressed button (a list with a number)
                     if button_pressed and isinstance(button_pressed[0], int):  # Check if the list has a number
                         digit = str(button_pressed[0])  # Convert the number to a string
+                        print(digit)
                         currPin += digit  # Append the digit to the PIN
                         pinStar="*"*len(currPin)
                         self.display.display_message("Pin:" + pinStar, "blue")
@@ -726,12 +815,12 @@ def load_config(config_file_path=DEFAULT_CONFIG_FILE_PATH):
     
     # Default configuration
     default_config = {
-        "db": {
+    "db": {
             "user": "admin",
             "password": "PORTALBOX",
             "host": "portalboxdb.cbwumiue49n9.us-east-2.rds.amazonaws.com",
             "database": "portalboxdb",
-            "website": "ec2-3-14-141-222.us-east-2.compute.amazonaws.com",
+            "website": "makerportal-steam.com",
             "api": "box.php",
             "bearer_token": "290900415d2d7aac80229cdea4f90fbf"
         },
@@ -750,8 +839,8 @@ def load_config(config_file_path=DEFAULT_CONFIG_FILE_PATH):
             "timeout_color": "FF 00 00",
             "unauth_card_grace_color": "FF 80 00",
             "flash_rate": 3,
-            "enable_buzzer": True,
-            "buzzer_pwm": True,
+            "enable_buzzer": False,
+            "buzzer_pwm": False,
             "led_type": "DOTSTAR"
         },
         "user_exp": {
@@ -771,7 +860,13 @@ def load_config(config_file_path=DEFAULT_CONFIG_FILE_PATH):
             "RFID_SDA": 3,
             "RFID_SCK": 2,
             "RFID_MOSI": 11,
-            "RFID_MISO": 10
+            "RFID_MISO": 10,
+            "SINGLE_BUTTON": 4
+        }
+        ,
+        "toggles": {
+            "enableKeypad": False,
+            "enableLCDScreen": True
         }
     }
     
@@ -850,7 +945,10 @@ def main():
             service.update_grace_display_if_needed()
             
             # Get inputs
-            input_data_new = service.get_inputs(input_data)
+            if settings["toggles"]["enableKeypad"]==True:
+                input_data_new = service.get_inputs(input_data)
+            else:
+                input_data_new = service.get_inputs_padless(input_data)
             print(f"Input data: {input_data_new}")
             
             # Update input data dictionary

@@ -44,6 +44,12 @@
             "RFID_SDA": 3,
             "RFID_SCK": 2,
             "RFID_MOSI": 11,
-            "RFID_MISO": 10
+            "RFID_MISO": 10,
+            "SINGLE_BUTTON": 4
+        }
+        ,
+        "toggles": {
+            "enableKeypad": false,
+            "enableLCDScreen": true
         }
   }

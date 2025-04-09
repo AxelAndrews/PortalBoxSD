@@ -23,6 +23,7 @@ DEFAULT_PIN_CONFIG = {
     "RFID_SCK": 2,
     "RFID_MOSI": 11,
     "RFID_MISO": 10,
+    "SINGLE_BUTTON": 4
 }
 
 # Define colors
@@ -59,7 +60,13 @@ class PortalBox:
                     else:
                         self.config[key] = value
                         print(f"Pin config override: {key} = {value}")
-        
+                        
+        # Get if the Keypad is enabled
+        self.keypadEnabled=settings["toggles"]["enableKeypad"]
+        #Initialize the single button if the keypad is disabled
+        if not self.keypadEnabled:
+            self.singleButton=Pin(self.config["SINGLE_BUTTON"], Pin.IN, Pin.PULL_UP)
+            
         print("Initializing hardware with configuration:")
         for key, value in self.config.items():
             print(f"  {key}: {value}")
@@ -89,14 +96,14 @@ class PortalBox:
         self.setScreenColor("white")
         print("LCD initialized")
         
-        # Initialize DotStar LEDs
-        self.dotstar = DotStar(
-            spi_bus=1,
-            data_pin=self.config["DOTSTAR_DATA"],
-            clock_pin=self.config["DOTSTAR_CLOCK"],
-            num_leds=15,
-            brightness=16
-        )
+        # # Initialize DotStar LEDs
+        # self.dotstar = DotStar(
+        #     spi_bus=1,
+        #     data_pin=self.config["DOTSTAR_DATA"],
+        #     clock_pin=self.config["DOTSTAR_CLOCK"],
+        #     num_leds=15,
+        #     brightness=16
+        # )
         print("DotStar LEDs initialized")
         
         # Initialize buzzer with optional settings
@@ -154,8 +161,8 @@ class PortalBox:
         self.buzzer.update()
         
         # If DotStar animations are active, update them
-        if self.dotstar:
-            self.dotstar.update_animations()
+        # if self.dotstar:
+        #     self.dotstar.update_animations()
 
     def lcd_print(self, message):
         '''
@@ -207,43 +214,50 @@ class PortalBox:
         Determine if "*" key is currently pressed
         Returns True if "*" key on the keypad is pressed
         '''
-        try:
-            keys_pressed = scan_keypad()
-            return '*' in keys_pressed
-        except Exception as e:
-            print(f"Keypad scan error: {e}")
-            return False
+        if self.keypadEnabled:
+            try:
+                keys_pressed = scan_keypad()
+                return '*' in keys_pressed
+            except Exception as e:
+                print(f"Keypad scan error: {e}")
+                return False
+        else:
+            return self.singleButton.value()
     
     def has_button_been_pressed(self):
         '''
         Check if the "*" key on the keypad has been pressed since the last call
         Implements simple debouncing and edge detection for * key
         '''
-        try:
-            current_time = time.ticks_ms()
-            keys_pressed=""
-            # Only check if enough time has passed (debounce)
-            if time.ticks_diff(current_time, self.last_keypad_check) > 25:  # 25ms debounce
-                # time.sleep(0.00001)
-                keys_pressed = scan_keypad()
-                
-                # Check for "*" key press
-                star_pressed_now = '*' in keys_pressed or "#" in keys_pressed
-                star_pressed_before = '*' in self.last_keys_pressed or "#" in self.last_keys_pressed
-                
-                # Store current state for next check
-                self.last_keys_pressed = keys_pressed
-                self.last_keypad_check = current_time
-                
-                # Detect rising edge (button press)
-                if star_pressed_now and not star_pressed_before:
-                    print("* or # key pressed")
-                    return [True, keys_pressed]
-                        
-            return [False, keys_pressed]
-        except Exception as e:
-            print(f"Button press check error: {e}")
-            return [False,""]
+        if self.keypadEnabled:
+            try:
+                current_time = time.ticks_ms()
+                keys_pressed=""
+                # Only check if enough time has passed (debounce)
+                if time.ticks_diff(current_time, self.last_keypad_check) > 25:  # 25ms debounce
+                    # time.sleep(0.00001)
+                    keys_pressed = scan_keypad()
+                    
+                    # Check for "*" key press
+                    star_pressed_now = '*' in keys_pressed or "#" in keys_pressed
+                    star_pressed_before = '*' in self.last_keys_pressed or "#" in self.last_keys_pressed
+                    
+                    # Store current state for next check
+                    self.last_keys_pressed = keys_pressed
+                    self.last_keypad_check = current_time
+                    
+                    # Detect rising edge (button press)
+                    if star_pressed_now and not star_pressed_before:
+                        print("* or # key pressed")
+                        return [True, keys_pressed]
+                            
+                return [False, keys_pressed]
+            except Exception as e:
+                print(f"Button press check error: {e}")
+                return [False,""]
+        else:
+            return self.singleButton.value()
+            
     
     def read_RFID_card(self):
         '''
@@ -335,9 +349,9 @@ class PortalBox:
         self.relay_pin.off()
         self.interlock_pin.off()
         
-        # Turn off DotStar LEDs
-        if self.dotstar:
-            self.dotstar.cleanup()
+        # # Turn off DotStar LEDs
+        # if self.dotstar:
+        #     self.dotstar.cleanup()
         
         # Clear the LCD display
         try:
