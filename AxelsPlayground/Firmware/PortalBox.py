@@ -23,7 +23,14 @@ DEFAULT_PIN_CONFIG = {
     "RFID_SCK": 2,
     "RFID_MOSI": 11,
     "RFID_MISO": 10,
-    "SINGLE_BUTTON": 4
+    "SINGLE_BUTTON": 4,
+    "KEYPAD_1": 15,
+    "KEYPAD_2": 23,
+    "KEYPAD_3": 22,
+    "KEYPAD_4": 21,
+    "KEYPAD_5": 20,
+    "KEYPAD_6": 19,
+    "KEYPAD_7": 18
 }
 
 # Define colors
@@ -62,10 +69,16 @@ class PortalBox:
                         print(f"Pin config override: {key} = {value}")
                         
         # Get if the Keypad is enabled
-        self.keypadEnabled=settings["toggles"]["enableKeypad"]
+        self.keypadEnabled=settings["toggles"]["enable_keypad"]
         #Initialize the single button if the keypad is disabled
         if not self.keypadEnabled:
             self.singleButton=Pin(self.config["SINGLE_BUTTON"], Pin.IN, Pin.PULL_UP)
+        else:
+            # Keypad configuration for a 3x4 matrix
+            self.cols = [Pin(x, Pin.IN, Pin.PULL_UP) for x in (self.config["KEYPAD_3"], self.config["KEYPAD_1"], self.config["KEYPAD_5"])]  # MicroPython pin numbers
+            self.rows = [Pin(x, Pin.OUT) for x in (self.config["KEYPAD_2"], self.config["KEYPAD_7"], self.config["KEYPAD_6"], self.config["KEYPAD_4"])]
+            # Define the key map (rows x columns)
+            self.keyBinds = ((1, 2, 3), (4, 5, 6), (7, 8, 9), ('*', 0, '#'))
             
         print("Initializing hardware with configuration:")
         for key, value in self.config.items():
@@ -257,8 +270,20 @@ class PortalBox:
                 return [False,""]
         else:
             return self.singleButton.value()
-            
-    
+
+    # Function to scan the keypad
+    def scan_keypad():
+        # Create an empty array to store pressed keys
+        pressed_keys = []
+        
+        for row_num, row in enumerate(self.rows):
+            row.value(0)  # Drive the row low (active)
+            for col_num, col in enumerate(self.cols):
+                if col.value() == 0:  # If the column is low, it means the key is pressed
+                    pressed_keys.append(self.keyBinds[row_num][col_num])
+            row.value(1)  # Drive the row high (inactive)
+
+        return pressed_keys
     def read_RFID_card(self):
         '''
         @return a positive integer representing the uid from the card on a successful read, -1 otherwise

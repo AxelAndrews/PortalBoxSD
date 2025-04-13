@@ -45,11 +45,18 @@
             "RFID_SCK": 2,
             "RFID_MOSI": 11,
             "RFID_MISO": 10,
-            "SINGLE_BUTTON": 4
+            "SINGLE_BUTTON": 4,
+            "KEYPAD_1": 15,
+            "KEYPAD_2": 23,
+            "KEYPAD_3": 22,
+            "KEYPAD_4": 21,
+            "KEYPAD_5": 20,
+            "KEYPAD_6": 19,
+            "KEYPAD_7": 18
         }
         ,
         "toggles": {
-            "enableKeypad": false,
-            "enableLCDScreen": true
+            "enable_keypad": false,
+            "enable_LCDScreen": true
         }
   }

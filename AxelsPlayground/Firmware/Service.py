@@ -861,12 +861,18 @@ def load_config(config_file_path=DEFAULT_CONFIG_FILE_PATH):
             "RFID_SCK": 2,
             "RFID_MOSI": 11,
             "RFID_MISO": 10,
-            "SINGLE_BUTTON": 4
-        }
-        ,
+            "SINGLE_BUTTON": 4,
+            "KEYPAD_1": 15,
+            "KEYPAD_2": 23,
+            "KEYPAD_3": 22,
+            "KEYPAD_4": 21,
+            "KEYPAD_5": 20,
+            "KEYPAD_6": 19,
+            "KEYPAD_7": 18
+        },
         "toggles": {
-            "enableKeypad": False,
-            "enableLCDScreen": True
+            "enable_keypad": False,
+            "enable_LCDScreen": True
         }
     }
     
@@ -945,7 +951,7 @@ def main():
             service.update_grace_display_if_needed()
             
             # Get inputs
-            if settings["toggles"]["enableKeypad"]==True:
+            if settings["toggles"]["enable_keypad"]==True:
                 input_data_new = service.get_inputs(input_data)
             else:
                 input_data_new = service.get_inputs_padless(input_data)
