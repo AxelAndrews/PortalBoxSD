@@ -86,8 +86,8 @@ class PortalBox:
             
         # Get buzzer settings
         self.buzzer_enabled = True
-        if "display" in settings and "enable_buzzer" in settings["display"]:
-            if str(settings["display"]["enable_buzzer"]).lower() in ("no", "false", "0"):
+        if "toggles" in settings and "enable_buzzer" in settings["toggles"]:
+            if str(settings["toggles"]["enable_buzzer"]).lower() in ("no", "false", "0"):
                 self.buzzer_enabled = False
                 print("Buzzer disabled in config")
             else:

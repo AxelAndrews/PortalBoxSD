@@ -308,7 +308,7 @@ class PortalBoxApplication():
             }
 
             new_input_data["user_is_authorized"]=self.verifyPin(new_input_data["user_is_authorized"],new_input_data["pin"])
-                    # # Handle card reader mode if active
+            # Handle card reader mode if active
             if self.in_card_reader_mode and new_input_data["user_is_authorized"]:
                 # Run card reader mode, exit if it returns False
                 self.in_card_reader_mode=self.handle_card_reader_mode(old_input_data['card_id'])
@@ -914,8 +914,8 @@ def main():
     
     # Print config summary
     print("\n--- Configuration Summary ---")
-    if "display" in settings and "enable_buzzer" in settings["display"]:
-        print(f"Buzzer enabled: {settings['display']['enable_buzzer']}")
+    if "toggles" in settings and "enable_buzzer" in settings["toggles"]:
+        print(f"Buzzer enabled: {settings['toggles']['enable_buzzer']}")
     if "user_exp" in settings and "grace_period" in settings["user_exp"]:
         print(f"Grace period: {settings['user_exp']['grace_period']}s")
     if "pins" in settings:
