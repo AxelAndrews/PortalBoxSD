@@ -109,14 +109,14 @@ class PortalBox:
         self.setScreenColor("white")
         print("LCD initialized")
         
-        # # Initialize DotStar LEDs
-        # self.dotstar = DotStar(
-        #     spi_bus=1,
-        #     data_pin=self.config["DOTSTAR_DATA"],
-        #     clock_pin=self.config["DOTSTAR_CLOCK"],
-        #     num_leds=15,
-        #     brightness=16
-        # )
+        # Initialize DotStar LEDs
+        self.dotstar = DotStar(
+            spi_bus=1,
+            data_pin=self.config["DOTSTAR_DATA"],
+            clock_pin=self.config["DOTSTAR_CLOCK"],
+            num_leds=15,
+            brightness=16
+        )
         print("DotStar LEDs initialized")
         
         # Initialize buzzer with optional settings
@@ -174,8 +174,8 @@ class PortalBox:
         self.buzzer.update()
         
         # If DotStar animations are active, update them
-        # if self.dotstar:
-        #     self.dotstar.update_animations()
+        if self.dotstar:
+            self.dotstar.update_animations()
 
     def lcd_print(self, message):
         '''
@@ -374,9 +374,9 @@ class PortalBox:
         self.relay_pin.off()
         self.interlock_pin.off()
         
-        # # Turn off DotStar LEDs
-        # if self.dotstar:
-        #     self.dotstar.cleanup()
+        # Turn off DotStar LEDs
+        if self.dotstar:
+            self.dotstar.cleanup()
         
         # Clear the LCD display
         try:
