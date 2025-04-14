@@ -27,7 +27,6 @@ class DisplayController:
             "auth_color": (255, 0, 0),
             "sleep_color": (0, 255, 0),
             "yellow": (255, 0, 255),
-            "magenta": (0, 255, 255),
             "admin_mode": (255, 255, 0),
             "white": (255, 255, 255),
             "proxy_color": (32, 0, 223),

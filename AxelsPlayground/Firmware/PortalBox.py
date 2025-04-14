@@ -43,6 +43,7 @@ CYAN = (0, 255, 255)
 WHITE = (255, 255, 255)
 LIGHTPURPLE=(204, 153, 255)
 ORANGE= (223, 32, 0)
+PURPLE= (128, 0, 128)
 
 class PortalBox:
     '''
@@ -398,8 +399,7 @@ class PortalBox:
             self.lcd.set_rgb_color(BLUE[0], BLUE[1], BLUE[2])
         elif color=="auth_color":
             self.lcd.set_rgb_color(GREEN[0], GREEN[1], GREEN[2])
-        elif color=="magenta":
-            self.lcd.set_rgb_color(MAGENTA[0], MAGENTA[1], MAGENTA[2])
+
         elif color=="yellow":
             self.lcd.set_rgb_color(YELLOW[0], YELLOW[1], YELLOW[2])
         elif color=="white":
@@ -408,4 +408,6 @@ class PortalBox:
             self.lcd.set_rgb_color(CYAN[0], CYAN[1], CYAN[2])
         elif color=="proxy_color":
             self.lcd.set_rgb_color(ORANGE[0], ORANGE[1], ORANGE[2])
+        elif color=="training_color":
+            self.lcd.set_rgb_color(PURPLE[0], PURPLE[1], PURPLE[2])
             
