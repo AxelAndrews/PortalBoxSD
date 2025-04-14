@@ -744,7 +744,7 @@ class PortalBoxApplication():
                 self.display.display_two_line_message("Authorized", "Machine On", "auth_color")
                 
         elif state_name == "RunningTrainingCard":
-            self.display.display_two_line_message("Training Mode", "Machine On", "training_color")
+            self.display.display_two_line_message("Training Mode", "Machine On", self.settings["display"]["training_color"])
             
         elif state_name == "RunningProxyCard":
             self.display.display_two_line_message("Proxy Access", "Machine On", "proxy_color")
@@ -825,22 +825,21 @@ def load_config(config_file_path=DEFAULT_CONFIG_FILE_PATH):
             "bearer_token": "290900415d2d7aac80229cdea4f90fbf"
         },
         "display": {
-            "setup_color": "FF FF FF",
-            "setup_color_db": "00 FF FF",
-            "setup_color_email": "FF FF 00",
-            "setup_color_role": "FF 00 FF",
-            "auth_color": "00 FF 00",
-            "proxy_color": "DF 20 00",
-            "training_color": "80 00 80",
-            "sleep_color": "00 00 FF",
-            "unauth_color": "FF 00 00",
-            "no_card_grace_color": "FF FF 00",
-            "grace_timeout_color": "DF 20 00",
-            "timeout_color": "FF 00 00",
-            "unauth_card_grace_color": "FF 80 00",
+            "setup_color":         [255, 255, 255],   
+            "setup_color_db":      [255, 255, 0],    
+            "setup_color_email":   [255, 0, 255],     
+            "setup_color_role":    [0, 255, 255],     
+            "auth_color":          [255, 0, 0],       
+            "proxy_color":         [32, 0, 223],      
+            "training_color":      [0, 128, 128],     
+            "sleep_color":         [0, 255, 0],       
+            "unauth_color":        [0, 0, 255],
+            "admin_mode":          [153, 255, 204],
+            "no_card_grace_color": [255, 0, 255],     
+            "grace_timeout_color": [32, 0, 223],      
+            "timeout_color":       [0, 0, 255],       
+            "unauth_card_grace_color": [128, 0, 255],
             "flash_rate": 3,
-            "enable_buzzer": False,
-            "buzzer_pwm": False,
             "led_type": "DOTSTAR"
         },
         "user_exp": {
@@ -869,12 +868,15 @@ def load_config(config_file_path=DEFAULT_CONFIG_FILE_PATH):
             "KEYPAD_5": 20,
             "KEYPAD_6": 19,
             "KEYPAD_7": 18
-        },
+        }
+        ,
         "toggles": {
-            "enable_keypad": False,
+            "enable_buzzer": False,
+            "buzzer_pwm": False,
+            "enable_keypad": True,
             "enable_LCDScreen": True
         }
-    }
+  }
     
     # Try to load from file
     try:

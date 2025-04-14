@@ -55,6 +55,7 @@ class PortalBox:
         
         # Load pin configuration from settings if available
         self.config = DEFAULT_PIN_CONFIG.copy()
+        self.settings=settings
         
         # Override defaults with settings from config.json if available
         if 'pins' in settings:
@@ -404,6 +405,6 @@ class PortalBox:
             self.lcd.set_rgb_color(CYAN[0], CYAN[1], CYAN[2])
         elif color=="proxy_color":
             self.lcd.set_rgb_color(ORANGE[0], ORANGE[1], ORANGE[2])
-        elif color=="training_color":
+        elif color==self.settings["display"]["training_color"]:
             self.lcd.set_rgb_color(PURPLE[0], PURPLE[1], PURPLE[2])
             
