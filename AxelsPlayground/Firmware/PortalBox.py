@@ -109,7 +109,6 @@ class PortalBox:
         # Initialize the LCD with conservative timing
         self.lcd = RGBLCD(uart_id=1, tx_pin=5, baud_rate=9600, cols=16, rows=2)
         self.lcd.display_on()
-        self.setScreenColor("white")
         print("LCD initialized")
         
         # Initialize DotStar LEDs
@@ -393,17 +392,14 @@ class PortalBox:
     
     def setScreenColor(self, color):
         """Set the LCD backlight color"""
-        if color=="red":
+        if color=="unauth_color":
             self.lcd.set_rgb_color(RED[0], RED[1], RED[2])
         elif color=="sleep_color":
             self.lcd.set_rgb_color(BLUE[0], BLUE[1], BLUE[2])
         elif color=="auth_color":
             self.lcd.set_rgb_color(GREEN[0], GREEN[1], GREEN[2])
-
         elif color=="process_color":
             self.lcd.set_rgb_color(YELLOW[0], YELLOW[1], YELLOW[2])
-        elif color=="white":
-            self.lcd.set_rgb_color(WHITE[0], WHITE[1], WHITE[2])
         elif color=="admin_mode":
             self.lcd.set_rgb_color(CYAN[0], CYAN[1], CYAN[2])
         elif color=="proxy_color":

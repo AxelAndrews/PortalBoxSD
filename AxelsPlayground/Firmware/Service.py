@@ -104,12 +104,12 @@ class PortalBoxApplication():
                 return True
             else:
                 print("Could not connect to WiFi")
-                self.display.display_two_line_message("WiFi Failed!", "Check Settings", "red")
+                self.display.display_two_line_message("WiFi Failed!", "Check Settings", "unauth_color")
                 time.sleep(1)
                 return False
         except Exception as e:
             print(f"WiFi connection failed: {e}")
-            self.display.display_two_line_message("WiFi Error!", f"{e}", "red")
+            self.display.display_two_line_message("WiFi Error!", f"{e}", "unauth_color")
             time.sleep(1)
             return False
 
@@ -127,7 +127,7 @@ class PortalBoxApplication():
             time.sleep(0.5)
         except Exception as e:
             print(f"Unable to connect to database exception raised: {e}")
-            self.display.display_message("DB Failed!", "red")
+            self.display.display_message("DB Failed!", "unauth_color")
             time.sleep(1)
             raise e
 
@@ -166,13 +166,13 @@ class PortalBoxApplication():
             except Exception as e:
                 print(f"Error: {e}")
                 print("Didn't get profile, trying again in 5 seconds")
-                self.display.display_two_line_message("Role Failed!", "Retrying...", "red")
+                self.display.display_two_line_message("Role Failed!", "Retrying...", "unauth_color")
                 time.sleep(5)
 
         # only run if we have role, which we might not if we were asked to
         # shutdown before we discovered a role
         if profile[0] < 0:
-            self.display.display_message("No Role Found!", "red")
+            self.display.display_message("No Role Found!", "unauth_color")
             time.sleep(1)
             raise RuntimeError("Cannot start, no role has been assigned")
         else:
@@ -291,7 +291,7 @@ class PortalBoxApplication():
                     print(f"Exception: {e}\n trying again")
                     # Only temporarily show error messages, then restore state
                     prev_display = self.last_displayed_state
-                    self.display.display_message("DB Error", "red")
+                    self.display.display_message("DB Error", "unauth_color")
                     time.sleep(1)
                     self.display.display_message("Retrying...", "process_color")
                     time.sleep(1)
@@ -394,7 +394,7 @@ class PortalBoxApplication():
                     print(f"Exception: {e}\n trying again")
                     # Only temporarily show error messages, then restore state
                     prev_display = self.last_displayed_state
-                    self.display.display_message("DB Error", "red")
+                    self.display.display_message("DB Error", "unauth_color")
                     time.sleep(1)
                     self.display.display_message("Retrying...", "process_color")
                     time.sleep(1)
@@ -472,7 +472,7 @@ class PortalBoxApplication():
                     return True
                     break
                 elif len(currPin) == 4 and attempts > 1:
-                    self.display.display_message("Incorrect Pin", "red")
+                    self.display.display_message("Incorrect Pin", "unauth_color")
                     time.sleep(0.5)
                     self.display.display_two_line_message("Pin:", "Attempts:" + str(attempts-1), "sleep_color")
                 
@@ -480,9 +480,9 @@ class PortalBoxApplication():
                 attempts -= 1  # Decrease attempts
                 
                 if attempts == 0:
-                    self.display.display_message("Incorrect Pin", "red")
+                    self.display.display_message("Incorrect Pin", "unauth_color")
                     time.sleep(1)
-                    self.display.display_message("Please Retry!", "red")
+                    self.display.display_message("Please Retry!", "unauth_color")
                     return False
                     break
                 
@@ -571,13 +571,13 @@ class PortalBoxApplication():
                             self.display.display_two_line_message("Admin Mode", "Scan User Card", "process_color")
                         else:
                             # Not an admin card
-                            self.display.display_two_line_message("Not Admin Card", "Need Admin Card", "red")
+                            self.display.display_two_line_message("Not Admin Card", "Need Admin Card", "unauth_color")
                             self.box.beep_once('error')
                             time.sleep(1)
                             self.display.display_two_line_message("Admin Mode", "Scan Admin Card", "admin_mode")
                     except Exception as e:
                         print(f"Error processing admin card: {e}")
-                        self.display.display_two_line_message("Card Error", "Try Again", "red")
+                        self.display.display_two_line_message("Card Error", "Try Again", "unauth_color")
                         self.box.beep_once('error')
                         time.sleep(1)
             
@@ -622,13 +622,13 @@ class PortalBoxApplication():
                                 self.display.display_two_line_message("User Card OK", "Authorizing...", "sleep_color")
                         else:
                             # Not a user card
-                            self.display.display_two_line_message("Not User Card", "Need User Card", "red")
+                            self.display.display_two_line_message("Not User Card", "Need User Card", "unauth_color")
                             self.box.beep_once('error')
                             time.sleep(1)
                             self.display.display_two_line_message("Admin Mode", "Scan User Card", "process_color")
                     except Exception as e:
                         print(f"Error processing user card: {e}")
-                        self.display.display_two_line_message("Card Error", "Try Again", "red")
+                        self.display.display_two_line_message("Card Error", "Try Again", "unauth_color")
                         self.box.beep_once('error')
                         time.sleep(1)
             
@@ -651,7 +651,7 @@ class PortalBoxApplication():
                         self.display.display_two_line_message("Welcome!", "Scan Card to Use", "sleep_color")
                         self.cert_mode_state = 'init'
                     else:
-                        self.display.display_two_line_message("Auth Failed", "DB Error", "red")
+                        self.display.display_two_line_message("Auth Failed", "DB Error", "unauth_color")
                         self.box.beep_once('error')
                     
                     time.sleep(2)
@@ -659,7 +659,7 @@ class PortalBoxApplication():
                     return False
                 except Exception as e:
                     print(f"Error updating authorization: {e}")
-                    self.display.display_two_line_message("Update Error", "Try Again Later", "red")
+                    self.display.display_two_line_message("Update Error", "Try Again Later", "unauth_color")
                     self.box.beep_once('error')
                     time.sleep(2)
                     self.cert_mode_state = 'init'  # Reset for next time
@@ -762,7 +762,7 @@ class PortalBoxApplication():
             self.display.display_message("Setting Up...", "process_color")
             
         elif state_name == "Shutdown":
-            self.display.display_message("Shutting Down...", "red")
+            self.display.display_message("Shutting Down...", "unauth_color")
             
         # Other states use default display from their on_enter methods
         else:
@@ -797,7 +797,7 @@ class PortalBoxApplication():
         Stops the program
         '''
         print("Service Exiting")
-        self.display.display_message("Shutting down...", "red")
+        self.display.display_message("Shutting down...", "unauth_color")
         self.box.cleanup()
 
         if self.equipment_id:

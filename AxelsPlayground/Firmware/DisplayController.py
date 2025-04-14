@@ -23,14 +23,12 @@ class DisplayController:
         self.animation_last_update = 0
         # Color shortcuts
         self.colors = {
-            "red": (0, 0, 255),
+            "unauth_color": (0, 0, 255),
             "auth_color": (255, 0, 0),
             "sleep_color": (0, 255, 0),
             "process_color": (255, 0, 255),
             "admin_mode": (255, 255, 0),
-            "white": (255, 255, 255),
             "proxy_color": (32, 0, 223),
-            "purple": (0, 128, 128),
             "training_color": (0, 128, 128),
         }
     
@@ -208,7 +206,7 @@ class DisplayController:
     def display_unauthorized(self):
         """Display unauthorized message"""
         try:
-            self.display_two_line_message("Unauthorized", "Access Denied", "red")
+            self.display_two_line_message("Unauthorized", "Access Denied", "unauth_color")
         except Exception as e:
             print(f"Unauthorized display error: {e}")
     

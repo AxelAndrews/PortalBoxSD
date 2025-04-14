@@ -226,7 +226,7 @@ class Shutdown(State):
         
         # Update display with shutdown message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_message("Shutting Down...", "red")
+            self.service.display.display_message("Shutting Down...", "unauth_color")
             
         self.service.box.set_equipment_power_on(False)
         self.service.shutdown(input_data["card_id"])
@@ -540,7 +540,7 @@ class RunningUnauthCard(State):
         
         # Show unauthorized message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_two_line_message("Unauthorized Card", "Insert Auth Card", "red")
+            self.service.display.display_two_line_message("Unauthorized Card", "Insert Auth Card", "unauth_color")
             
         self.service.box.start_beeping()
 
@@ -632,7 +632,7 @@ class RunningProxyCard(State):
         
         # Show proxy mode message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_two_line_message("Proxy Access", "Machine On", "admin_mode")
+            self.service.display.display_two_line_message("Proxy Access", "Machine On", "proxy_color")
 
 class RunningTrainingCard(State):
     """
@@ -665,4 +665,4 @@ class RunningTrainingCard(State):
         
         # Show training mode message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_two_line_message("Training Mode", "Machine On", "auth_color")
+            self.service.display.display_two_line_message("Training Mode", "Machine On", "training_color")
