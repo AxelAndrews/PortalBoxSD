@@ -400,7 +400,7 @@ class PortalBox:
         elif color=="auth_color":
             self.lcd.set_rgb_color(GREEN[0], GREEN[1], GREEN[2])
 
-        elif color=="yellow":
+        elif color=="process_color":
             self.lcd.set_rgb_color(YELLOW[0], YELLOW[1], YELLOW[2])
         elif color=="white":
             self.lcd.set_rgb_color(WHITE[0], WHITE[1], WHITE[2])

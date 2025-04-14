@@ -161,7 +161,7 @@ class Setup(State):
         
         # Update display with setup message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_message("Setting Up...", "yellow")
+            self.service.display.display_message("Setting Up...", "process_color")
         
         try:
             try:
@@ -316,7 +316,7 @@ class IdleUnknownCard(State):
         
         # Show processing message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_message("Processing Card...", "yellow")
+            self.service.display.display_message("Processing Card...", "process_color")
 
 class RunningUnknownCard(State):
     """
@@ -403,7 +403,7 @@ class RunningUnknownCard(State):
         
         # Show processing message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_message("Processing Card...", "yellow")
+            self.service.display.display_message("Processing Card...", "process_color")
 
 class RunningAuthUser(State):
     """
@@ -501,7 +501,7 @@ class RunningNoCard(State):
         # Start grace timer on display controller if available
         if hasattr(self.service, 'display'):
             self.service.display.start_grace_timer(self.grace_delta.seconds)
-            self.service.display.display_two_line_message("Grace Period", "Insert Card", "yellow")
+            self.service.display.display_two_line_message("Grace Period", "Insert Card", "process_color")
         
         self.service.box.start_beeping(
             freq=500,

@@ -26,7 +26,7 @@ class DisplayController:
             "red": (0, 0, 255),
             "auth_color": (255, 0, 0),
             "sleep_color": (0, 255, 0),
-            "yellow": (255, 0, 255),
+            "process_color": (255, 0, 255),
             "admin_mode": (255, 255, 0),
             "white": (255, 255, 255),
             "proxy_color": (32, 0, 223),
@@ -183,7 +183,7 @@ class DisplayController:
             
             # Format as "Insert Card" on first line, progress bar and timer on second
             time_str = f"{int(remaining)}s"
-            self.display_two_line_message("Insert Card", progress_bar + " " + time_str, "yellow")
+            self.display_two_line_message("Insert Card", progress_bar + " " + time_str, "process_color")
             
             return remaining
         except Exception as e:

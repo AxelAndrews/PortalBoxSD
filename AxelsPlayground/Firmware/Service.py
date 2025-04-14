@@ -75,7 +75,7 @@ class PortalBoxApplication():
     def connect_wifi(self):
         """Connects to WiFi and prints the IP and MAC address."""
         print("Connecting to WiFi...")
-        self.display.display_two_line_message("Connecting to", "WiFi...", "yellow")
+        self.display.display_two_line_message("Connecting to", "WiFi...", "process_color")
         
         wlan = network.WLAN(network.STA_IF)
         wlan.active(True)
@@ -119,7 +119,7 @@ class PortalBoxApplication():
         '''
         # connect to backend database
         print("Attempting to connect to database")
-        self.display.display_message("Connecting to DB", "yellow")
+        self.display.display_message("Connecting to DB", "process_color")
 
         try:
             self.db = Database(self.settings["db"])
@@ -153,7 +153,7 @@ class PortalBoxApplication():
         """
         # Determine what we are
         profile = (-1,)
-        self.display.display_message("Getting Role...", "yellow")
+        self.display.display_message("Getting Role...", "process_color")
         
         while profile[0] < 0:
             try:
@@ -293,7 +293,7 @@ class PortalBoxApplication():
                     prev_display = self.last_displayed_state
                     self.display.display_message("DB Error", "red")
                     time.sleep(1)
-                    self.display.display_message("Retrying...", "yellow")
+                    self.display.display_message("Retrying...", "process_color")
                     time.sleep(1)
                     if prev_display:
                         self.display.display_message(prev_display)
@@ -396,7 +396,7 @@ class PortalBoxApplication():
                     prev_display = self.last_displayed_state
                     self.display.display_message("DB Error", "red")
                     time.sleep(1)
-                    self.display.display_message("Retrying...", "yellow")
+                    self.display.display_message("Retrying...", "process_color")
                     time.sleep(1)
                     if prev_display:
                         self.display.display_message(prev_display)
@@ -558,7 +558,7 @@ class PortalBoxApplication():
                             time.sleep(1)
                             
                             # Wait for admin to remove card
-                            self.display.display_two_line_message("Admin Mode", "Remove Card", "yellow")
+                            self.display.display_two_line_message("Admin Mode", "Remove Card", "process_color")
                             
                             # Wait for card removal
                             waiting_removal = True
@@ -568,7 +568,7 @@ class PortalBoxApplication():
                                     waiting_removal = False
                                 time.sleep(0.2)
                             
-                            self.display.display_two_line_message("Admin Mode", "Scan User Card", "yellow")
+                            self.display.display_two_line_message("Admin Mode", "Scan User Card", "process_color")
                         else:
                             # Not an admin card
                             self.display.display_two_line_message("Not Admin Card", "Need Admin Card", "red")
@@ -600,12 +600,12 @@ class PortalBoxApplication():
                         if details["card_type"] == CardType.USER_CARD:
                             if details["user_is_authorized"]:
                                 # Already authorized
-                                self.display.display_two_line_message("Already Auth", "No Change Needed", "yellow")
+                                self.display.display_two_line_message("Already Auth", "No Change Needed", "process_color")
                                 self.box.beep_once('warning')
                                 time.sleep(1)
                                 self.cert_mode_state = 'init'
                                 # self.display.display_two_line_message("Welcome!", "Scan Card to Use", "sleep_color")
-                                self.display.display_message("Press # to Exit", "yellow")
+                                self.display.display_message("Press # to Exit", "process_color")
                                 while "#" not in Keypad.scan_keypad():
                                     time.sleep(0.5)
                                 print("Exiting admin certification mode")
@@ -625,7 +625,7 @@ class PortalBoxApplication():
                             self.display.display_two_line_message("Not User Card", "Need User Card", "red")
                             self.box.beep_once('error')
                             time.sleep(1)
-                            self.display.display_two_line_message("Admin Mode", "Scan User Card", "yellow")
+                            self.display.display_two_line_message("Admin Mode", "Scan User Card", "process_color")
                     except Exception as e:
                         print(f"Error processing user card: {e}")
                         self.display.display_two_line_message("Card Error", "Try Again", "red")
@@ -642,7 +642,7 @@ class PortalBoxApplication():
                         self.display.display_two_line_message("Authorization", "Successful!", "auth_color")
                         self.box.beep_once('success')
                         time.sleep(1.5)
-                        self.display.display_message("Press # to Exit", "yellow")
+                        self.display.display_message("Press # to Exit", "process_color")
                         while "#" not in Keypad.scan_keypad():
                             time.sleep(0.5)
                         print("Exiting admin certification mode")
@@ -759,7 +759,7 @@ class PortalBoxApplication():
                 self.grace_timer_started = True
             
         elif state_name == "Setup":
-            self.display.display_message("Setting Up...", "yellow")
+            self.display.display_message("Setting Up...", "process_color")
             
         elif state_name == "Shutdown":
             self.display.display_message("Shutting Down...", "red")
