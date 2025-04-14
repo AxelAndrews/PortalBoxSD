@@ -632,7 +632,7 @@ class RunningProxyCard(State):
         
         # Show proxy mode message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_two_line_message("Proxy Access", "Machine On", "cyan")
+            self.service.display.display_two_line_message("Proxy Access", "Machine On", "admin_mode")
 
 class RunningTrainingCard(State):
     """

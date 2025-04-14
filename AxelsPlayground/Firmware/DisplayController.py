@@ -28,12 +28,11 @@ class DisplayController:
             "sleep_color": (0, 255, 0),
             "yellow": (255, 0, 255),
             "magenta": (0, 255, 255),
-            "cyan": (255, 255, 0),
+            "admin_mode": (255, 255, 0),
             "white": (255, 255, 255),
-            "orange": (165, 0, 255),
+            "proxy_color": (32, 0, 223),
             "purple": (0, 128, 128),
             "training_color": (0, 128, 128),
-            "admin_mode": (153, 255, 204),
         }
     
     def set_color(self, color_name):
@@ -203,7 +202,7 @@ class DisplayController:
         """Display card ID information"""
         try:
             id_str = str(card_id) if card_id > 0 else "No Card"
-            self.display_two_line_message("Card ID:", id_str, "cyan")
+            self.display_two_line_message("Card ID:", id_str, "admin_mode")
         except Exception as e:
             print(f"Card ID display error: {e}")
     
@@ -231,7 +230,7 @@ class DisplayController:
                 scan_text = f"Scanning{dots}"
                 
                 # Display the animation
-                self.display_two_line_message(inputText, scan_text, "cyan")
+                self.display_two_line_message(inputText, scan_text, "admin_mode")
                 
                 self.animation_last_update = current_time
         except Exception as e:

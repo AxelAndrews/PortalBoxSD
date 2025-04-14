@@ -186,10 +186,10 @@ class PortalBoxApplication():
         print(f"Discovered identity. Type: {self.equipment_type}({self.equipment_type_id}) Timeout: {self.timeout_minutes} m Allows Proxy: {self.allow_proxy}")
         if self.timeout_minutes==0:
             self.display.display_two_line_message(f"{self.equipment_type}", 
-                                                f"Timeout: {self.timeout_minutes}m", "cyan")
+                                                f"Timeout: {self.timeout_minutes}m", "admin_mode")
         else:
             self.display.display_two_line_message(f"No", 
-                                                f"Timeout", "cyan")
+                                                f"Timeout", "admin_mode")
         time.sleep(1)
         
         # Log that we're started
@@ -224,7 +224,7 @@ class PortalBoxApplication():
             # Enter card reader mode
             self.in_card_reader_mode = True
             self.in_certification_mode= False
-            self.display.display_two_line_message("Admin Card","Required", "cyan")
+            self.display.display_two_line_message("Admin Card","Required", "admin_mode")
             self.box.beep_once('success')
             
             # Create a copy and reset button pressed to avoid side effects
@@ -505,7 +505,7 @@ class PortalBoxApplication():
                 pass
             else:
                 decimalVal=int(str(card_id),16)
-                self.display.display_two_line_message("Card ID:", f"{decimalVal}", "cyan")
+                self.display.display_two_line_message("Card ID:", f"{decimalVal}", "admin_mode")
                 
             old_card_id= card_id
         return True
@@ -747,7 +747,7 @@ class PortalBoxApplication():
             self.display.display_two_line_message("Training Mode", "Machine On", "training_color")
             
         elif state_name == "RunningProxyCard":
-            self.display.display_two_line_message("Proxy Access", "Machine On", "cyan")
+            self.display.display_two_line_message("Proxy Access", "Machine On", "proxy_color")
             
         elif state_name == "IdleUnauthCard":
             self.display.display_unauthorized()

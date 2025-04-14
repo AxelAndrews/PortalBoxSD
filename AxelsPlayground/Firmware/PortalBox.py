@@ -42,6 +42,7 @@ MAGENTA = (255, 0, 255)
 CYAN = (0, 255, 255)
 WHITE = (255, 255, 255)
 LIGHTPURPLE=(204, 153, 255)
+ORANGE= (223, 32, 0)
 
 class PortalBox:
     '''
@@ -403,5 +404,8 @@ class PortalBox:
             self.lcd.set_rgb_color(YELLOW[0], YELLOW[1], YELLOW[2])
         elif color=="white":
             self.lcd.set_rgb_color(WHITE[0], WHITE[1], WHITE[2])
-        elif color=="cyan":
+        elif color=="admin_mode":
             self.lcd.set_rgb_color(CYAN[0], CYAN[1], CYAN[2])
+        elif color=="proxy_color":
+            self.lcd.set_rgb_color(ORANGE[0], ORANGE[1], ORANGE[2])
+            
