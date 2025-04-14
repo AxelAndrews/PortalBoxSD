@@ -21,18 +21,19 @@ class DisplayController:
         self.progress_chars = ['-', '=', '=', '#']
         self.animation_frame = 0
         self.animation_last_update = 0
-        
         # Color shortcuts
         self.colors = {
             "red": (0, 0, 255),
-            "green": (255, 0, 0),
-            "blue": (0, 255, 0),
-            "yellow": (255, 255, 0),
-            "magenta": (255, 0, 255),
-            "cyan": (0, 255, 255),
+            "auth_color": (255, 0, 0),
+            "sleep_color": (0, 255, 0),
+            "yellow": (255, 0, 255),
+            "magenta": (0, 255, 255),
+            "cyan": (255, 255, 0),
             "white": (255, 255, 255),
-            "orange": (255, 165, 0),
-            "purple": (128, 0, 128)
+            "orange": (165, 0, 255),
+            "purple": (0, 128, 128),
+            "training_color": (0, 128, 128),
+            "admin_mode": (153, 255, 204),
         }
     
     def set_color(self, color_name):
@@ -52,7 +53,7 @@ class DisplayController:
             # Use existing dotstar if available
             if hasattr(self.box, 'dotstar'):
                 color = self.colors.get(color_name.lower(), (0, 0, 255))# Default to blue
-                if color_name.lower()=="blue":
+                if color_name.lower()=="sleep_color":
                     self.box.dotstar.rainbow_cycle(1000)
                 else:
                     self.box.dotstar.fill(color)
@@ -145,12 +146,12 @@ class DisplayController:
             user_info = self.box.service.db.get_user(user_id)
             if user_info and user_info[0]:
                 name = user_info[0].split(" ")[0]  # Get just the first name
-                self.display_two_line_message("Welcome " + name, "Machine On", "green")
+                self.display_two_line_message("Welcome " + name, "Machine On", "auth_color")
             else:
-                self.display_two_line_message("Welcome", "Machine On", "green")
+                self.display_two_line_message("Welcome", "Machine On", "auth_color")
         except Exception as e:
             print(f"Error getting user: {e}")
-            self.display_two_line_message("Welcome", "Machine On", "green")
+            self.display_two_line_message("Welcome", "Machine On", "auth_color")
     
     def start_grace_timer(self, total_seconds):
         """
@@ -194,7 +195,7 @@ class DisplayController:
     def display_idle_instructions(self):
         """Display instructions in idle mode"""
         try:
-            self.display_two_line_message("Welcome!", "Scan Card to Use", "blue")
+            self.display_two_line_message("Welcome!", "Scan Card to Use", "sleep_color")
         except Exception as e:
             print(f"Idle instructions error: {e}")
     

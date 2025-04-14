@@ -33,7 +33,7 @@ DEFAULT_PIN_CONFIG = {
     "KEYPAD_7": 18
 }
 
-# Define colors
+# Define colors for LCD Screen
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
@@ -41,6 +41,7 @@ YELLOW = (255, 255, 0)
 MAGENTA = (255, 0, 255)
 CYAN = (0, 255, 255)
 WHITE = (255, 255, 255)
+LIGHTPURPLE=(204, 153, 255)
 
 class PortalBox:
     '''
@@ -392,9 +393,9 @@ class PortalBox:
         """Set the LCD backlight color"""
         if color=="red":
             self.lcd.set_rgb_color(RED[0], RED[1], RED[2])
-        elif color=="blue":
+        elif color=="sleep_color":
             self.lcd.set_rgb_color(BLUE[0], BLUE[1], BLUE[2])
-        elif color=="green":
+        elif color=="auth_color":
             self.lcd.set_rgb_color(GREEN[0], GREEN[1], GREEN[2])
         elif color=="magenta":
             self.lcd.set_rgb_color(MAGENTA[0], MAGENTA[1], MAGENTA[2])

@@ -95,7 +95,7 @@ class PortalBoxApplication():
             if wlan.isconnected():
                 ip_address = wlan.ifconfig()[0]
                 print(f"Connected! IP: {ip_address}")
-                self.display.display_two_line_message("WiFi Connected", f"IP: {ip_address}", "green")
+                self.display.display_two_line_message("WiFi Connected", f"IP: {ip_address}", "auth_color")
                 time.sleep(1)
                 
                 mac_bytes = wlan.config('mac')
@@ -123,7 +123,7 @@ class PortalBoxApplication():
 
         try:
             self.db = Database(self.settings["db"])
-            self.display.display_message("DB Connected!", "green")
+            self.display.display_message("DB Connected!", "auth_color")
             time.sleep(0.5)
         except Exception as e:
             print(f"Unable to connect to database exception raised: {e}")
@@ -195,7 +195,7 @@ class PortalBoxApplication():
         # Log that we're started
         self.db.log_started_status(self.equipment_id)
         
-        self.display.display_message("Ready!", "green")
+        self.display.display_message("Ready!", "auth_color")
         time.sleep(0.5)
 
     # Fixes for the get_inputs and handle_card_reader_mode methods in Service.py
@@ -241,7 +241,7 @@ class PortalBoxApplication():
             self.in_card_reader_mode = False
             self.in_certification_mode = True
             self.cert_mode_state = 'init'  # Initialize state machine
-            self.display.display_two_line_message("Admin Mode", "Starting...", "purple")
+            self.display.display_two_line_message("Admin Mode", "Starting...", "admin_mode")
             self.box.beep_once('success')
             
             # Create a copy and reset button pressed to avoid side effects
@@ -447,13 +447,13 @@ class PortalBoxApplication():
     def loopRainbowCycle(self):
         currCard=self.box.read_RFID_card()
         while currCard == -1:
-            self.display.set_color("blue")
+            self.display.set_color("sleep_color")
             currCard=self.box.read_RFID_card()
             
     def verifyPin(self, isAuthorized, userPin):
         if isAuthorized == True:
             attempts = 3  # Start with 3 attempts
-            self.display.display_two_line_message("Please Enter Pin", "Attempts:" + str(attempts), "blue")
+            self.display.display_two_line_message("Please Enter Pin", "Attempts:" + str(attempts), "sleep_color")
             while attempts > 0:  # Run while attempts are greater than 0
                 currPin = ""
                 while len(currPin) < 4:  # Ensure the PIN is 4 digits long
@@ -463,8 +463,8 @@ class PortalBoxApplication():
                         print(digit)
                         currPin += digit  # Append the digit to the PIN
                         pinStar="*"*len(currPin)
-                        self.display.display_message("Pin:" + pinStar, "blue")
-                        self.display.display_two_line_message("Pin:" + pinStar, "Attempts:" + str(attempts), "blue")
+                        self.display.display_message("Pin:" + pinStar, "sleep_color")
+                        self.display.display_two_line_message("Pin:" + pinStar, "Attempts:" + str(attempts), "sleep_color")
                     time.sleep(0.0001)  # Small delay to avoid excessive CPU usage
                 
                 # Check if the PIN is "0000" or if we've tried 3 times without success
@@ -474,7 +474,7 @@ class PortalBoxApplication():
                 elif len(currPin) == 4 and attempts > 1:
                     self.display.display_message("Incorrect Pin", "red")
                     time.sleep(0.5)
-                    self.display.display_two_line_message("Pin:", "Attempts:" + str(attempts-1), "blue")
+                    self.display.display_two_line_message("Pin:", "Attempts:" + str(attempts-1), "sleep_color")
                 
                 # Decrement attempts after a failed attempt
                 attempts -= 1  # Decrease attempts
@@ -492,11 +492,11 @@ class PortalBoxApplication():
             card_id = self.box.read_RFID_card()
             if "*" in Keypad.scan_keypad() and not self.box.has_button_been_pressed()[0]:
                 print("Exiting card reader mode")
-                self.display.display_two_line_message("Exiting", "Card Reader Mode", "blue")
+                self.display.display_two_line_message("Exiting", "Card Reader Mode", "sleep_color")
                 time.sleep(1)
-                # self.display_two_line_message("Scan Card to Use", "Enter a Card", "blue")
-                # self.display.display_message("", "blue")
-                self.display.display_two_line_message("Welcome!", "Scan Card to Use", "blue")
+                # self.display_two_line_message("Scan Card to Use", "Enter a Card", "sleep_color")
+                # self.display.display_message("", "sleep_color")
+                self.display.display_two_line_message("Welcome!", "Scan Card to Use", "sleep_color")
                 self.loopRainbowCycle()
                 return False
             if card_id == -1 and old_card_id==-1:
@@ -522,12 +522,12 @@ class PortalBoxApplication():
                 self.cert_mode_state = 'waiting_admin'
                 self.admin_card_id = None
                 self.user_card_id = None
-                self.display.display_two_line_message("Admin Mode", "Scan Admin Card", "purple")
+                self.display.display_two_line_message("Admin Mode", "Scan Admin Card", "admin_mode")
             
             # Check for exit button press (* key)
             if "#" in Keypad.scan_keypad():
                 print("Exiting admin certification mode")
-                self.display.display_two_line_message("Exiting", "Admin Mode", "blue")
+                self.display.display_two_line_message("Exiting", "Admin Mode", "sleep_color")
                 time.sleep(1)
                 self.cert_mode_state = 'init'  # Reset state for next time
                 return False
@@ -553,7 +553,7 @@ class PortalBoxApplication():
                             # Admin card accepted
                             self.admin_card_id = decimal_id
                             self.cert_mode_state = 'waiting_user'
-                            self.display.display_two_line_message("Admin Verified", "Remove Card", "green")
+                            self.display.display_two_line_message("Admin Verified", "Remove Card", "auth_color")
                             self.box.beep_once('success')
                             time.sleep(1)
                             
@@ -574,7 +574,7 @@ class PortalBoxApplication():
                             self.display.display_two_line_message("Not Admin Card", "Need Admin Card", "red")
                             self.box.beep_once('error')
                             time.sleep(1)
-                            self.display.display_two_line_message("Admin Mode", "Scan Admin Card", "purple")
+                            self.display.display_two_line_message("Admin Mode", "Scan Admin Card", "admin_mode")
                     except Exception as e:
                         print(f"Error processing admin card: {e}")
                         self.display.display_two_line_message("Card Error", "Try Again", "red")
@@ -604,14 +604,14 @@ class PortalBoxApplication():
                                 self.box.beep_once('warning')
                                 time.sleep(1)
                                 self.cert_mode_state = 'init'
-                                # self.display.display_two_line_message("Welcome!", "Scan Card to Use", "blue")
+                                # self.display.display_two_line_message("Welcome!", "Scan Card to Use", "sleep_color")
                                 self.display.display_message("Press # to Exit", "yellow")
                                 while "#" not in Keypad.scan_keypad():
                                     time.sleep(0.5)
                                 print("Exiting admin certification mode")
-                                self.display.display_two_line_message("Exiting", "Admin Mode", "blue")
+                                self.display.display_two_line_message("Exiting", "Admin Mode", "sleep_color")
                                 time.sleep(1)
-                                self.display.display_two_line_message("Welcome!", "Scan Card to Use", "blue")
+                                self.display.display_two_line_message("Welcome!", "Scan Card to Use", "sleep_color")
                                 self.cert_mode_state = 'init'  # Reset state for next time
                                 self.loopRainbowCycle()
                                 return False
@@ -619,7 +619,7 @@ class PortalBoxApplication():
                                 # User needs authorization - proceed to update
                                 self.user_card_id = decimal_id
                                 self.cert_mode_state = 'updating'
-                                self.display.display_two_line_message("User Card OK", "Authorizing...", "blue")
+                                self.display.display_two_line_message("User Card OK", "Authorizing...", "sleep_color")
                         else:
                             # Not a user card
                             self.display.display_two_line_message("Not User Card", "Need User Card", "red")
@@ -639,16 +639,16 @@ class PortalBoxApplication():
                     success = self.update_user_authorization(self.user_card_id)
                     
                     if success:
-                        self.display.display_two_line_message("Authorization", "Successful!", "green")
+                        self.display.display_two_line_message("Authorization", "Successful!", "auth_color")
                         self.box.beep_once('success')
                         time.sleep(1.5)
                         self.display.display_message("Press # to Exit", "yellow")
                         while "#" not in Keypad.scan_keypad():
                             time.sleep(0.5)
                         print("Exiting admin certification mode")
-                        self.display.display_two_line_message("Exiting", "Admin Mode", "blue")
+                        self.display.display_two_line_message("Exiting", "Admin Mode", "sleep_color")
                         time.sleep(1)
-                        self.display.display_two_line_message("Welcome!", "Scan Card to Use", "blue")
+                        self.display.display_two_line_message("Welcome!", "Scan Card to Use", "sleep_color")
                         self.cert_mode_state = 'init'
                     else:
                         self.display.display_two_line_message("Auth Failed", "DB Error", "red")
@@ -741,10 +741,10 @@ class PortalBoxApplication():
             if card_id > 0:
                 self.display.display_welcome(card_id)
             else:
-                self.display.display_two_line_message("Authorized", "Machine On", "green")
+                self.display.display_two_line_message("Authorized", "Machine On", "auth_color")
                 
         elif state_name == "RunningTrainingCard":
-            self.display.display_two_line_message("Training Mode", "Machine On", "green")
+            self.display.display_two_line_message("Training Mode", "Machine On", "training_color")
             
         elif state_name == "RunningProxyCard":
             self.display.display_two_line_message("Proxy Access", "Machine On", "cyan")

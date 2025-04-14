@@ -268,7 +268,7 @@ class AccessComplete(State):
         
         # Update display with completion message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_message("Session Complete", "blue")
+            self.service.display.display_message("Session Complete", "sleep_color")
         
         # Reset all state variables
         FSM_STATE["proxy_id"] = 0
@@ -665,4 +665,4 @@ class RunningTrainingCard(State):
         
         # Show training mode message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_two_line_message("Training Mode", "Machine On", "green")
+            self.service.display.display_two_line_message("Training Mode", "Machine On", "auth_color")
