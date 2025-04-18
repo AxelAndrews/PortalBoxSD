@@ -42,6 +42,7 @@ class PortalBoxApplication():
         self.card_id = 0
         self.current_state_name = "Initializing"  # Track current state name
         self.last_displayed_state = ""  # Keep track of what's on the LCD
+        self.lastUser=""
         
         # Set WiFi credentials from config if available
         self.WIFI_SSID = "bucknell_iot"
@@ -306,8 +307,23 @@ class PortalBoxApplication():
                 "button_pressed": self.box.has_button_been_pressed()[0],
                 "pin": details['pin']
             }
-
-            new_input_data["user_is_authorized"]=self.verifyPin(new_input_data["user_is_authorized"],new_input_data["pin"])
+            if self.current_state_name!="RunningNoCard":
+                new_input_data["user_is_authorized"]=self.verifyPin(new_input_data["user_is_authorized"],new_input_data["pin"])
+            # if self.current_state_name!="RunningNoCard" and new_input_data["user_is_authorized"]:
+                # self.lastUser=new_input_data["card_id"]
+                # self.lastUser=new_input_data["card_id"]
+            # elif self.current_state_name=="RunningNoCard" and card_id != old_input_data["card_id"]:
+            #     pass
+            # else:
+            #     new_input_data = {
+            #     "card_id": -1,
+            #     "user_is_authorized": False,
+            #     "card_type": CardType.INVALID_CARD,
+            #     "user_authority_level": 0,
+            #     "button_pressed": self.box.has_button_been_pressed()[0],
+            #     "pin": -1
+            # }
+            
             # Handle card reader mode if active
             if self.in_card_reader_mode and new_input_data["user_is_authorized"]:
                 # Run card reader mode, exit if it returns False
@@ -378,7 +394,7 @@ class PortalBoxApplication():
         card_id = int(card_id, 16) if card_id != -1 else -1
         
         # If a card is present, and old_input_data showed either no card present, or a different card present
-        if(card_id > 0 and card_id != old_input_data["card_id"]):
+        if(card_id > 0 and card_id != old_input_data["card_id"] and self.lastUser!=old_input_data["card_id"]):
             print(f"Card with ID: {card_id} read, Getting info from DB")
             
             # Briefly show card ID but don't overwrite state display
@@ -463,6 +479,7 @@ class PortalBoxApplication():
                         print(digit)
                         currPin += digit  # Append the digit to the PIN
                         pinStar="*"*len(currPin)
+                        # pinStar=currPin
                         self.display.display_message("Pin:" + pinStar, "sleep_color")
                         self.display.display_two_line_message("Pin:" + pinStar, "Attempts:" + str(attempts), "sleep_color")
                     time.sleep(0.0001)  # Small delay to avoid excessive CPU usage
@@ -487,6 +504,7 @@ class PortalBoxApplication():
                     break
                 
     def handle_card_reader_mode(self, old_input):
+        time.sleep(1)
         old_card_id=old_input
         while True:
             card_id = self.box.read_RFID_card()
@@ -494,8 +512,7 @@ class PortalBoxApplication():
                 print("Exiting card reader mode")
                 self.display.display_two_line_message("Exiting", "Card Reader Mode", "sleep_color")
                 time.sleep(1)
-                # self.display_two_line_message("Scan Card to Use", "Enter a Card", "sleep_color")
-                # self.display.display_message("", "sleep_color")
+                self.cert_mode_state = 'init'  # Reset state for next time
                 self.display.display_two_line_message("Welcome!", "Scan Card to Use", "sleep_color")
                 self.loopRainbowCycle()
                 return False
@@ -517,6 +534,7 @@ class PortalBoxApplication():
         Returns True if still in this mode, False if exiting
         """
         try:
+            time.sleep(1)
             # Step 1: Initial state - waiting for admin card
             if not hasattr(self, 'cert_mode_state') or self.cert_mode_state == 'init':
                 self.cert_mode_state = 'waiting_admin'
@@ -524,12 +542,14 @@ class PortalBoxApplication():
                 self.user_card_id = None
                 self.display.display_two_line_message("Admin Mode", "Scan Admin Card", "admin_mode")
             
-            # Check for exit button press (* key)
+            # Check for exit button press (# key)
             if "#" in Keypad.scan_keypad():
                 print("Exiting admin certification mode")
                 self.display.display_two_line_message("Exiting", "Admin Mode", "sleep_color")
                 time.sleep(1)
                 self.cert_mode_state = 'init'  # Reset state for next time
+                self.display.display_two_line_message("Welcome!", "Scan Card to Use", "sleep_color")
+                self.loopRainbowCycle()
                 return False
             
             # Step 2: Waiting for admin card

@@ -384,6 +384,12 @@ class RunningUnknownCard(State):
             not input_data["user_is_authorized"]):
             print("Unauthorized user card during grace period, transitioning to RunningNoCard state")
             return self.next_state(RunningNoCard, input_data)
+        elif (coming_from_no_card and 
+            input_data["card_type"] == CardType.USER_CARD and 
+            input_data["user_is_authorized"]):
+            print("Different authorized user card during grace period, transitioning to RunningNoCard state")
+            return self.next_state(RunningUnauthCard, input_data)
+            # return None
 
         # Check if time expired
         elif self.grace_expired():
