@@ -50,13 +50,13 @@ class DisplayController:
             self.box.setScreenColor(color_name)
             
             # # Use existing dotstar if available
-            # if hasattr(self.box, 'dotstar'):
-            #     color = self.colors.get(color_name.lower(), (0, 0, 255))# Default to blue
-            #     if color_name.lower()=="blue":
-            #         self.box.dotstar.rainbow_cycle(1000)
-            #     else:
-            #         self.box.dotstar.fill(color)
-            #     self.box.dotstar.show()
+            if hasattr(self.box, 'dotstar'):
+                color = self.colors.get(color_name.lower(), (0, 0, 255))# Default to blue
+                if color_name.lower()=="blue":
+                    self.box.dotstar.rainbow_cycle(1000)
+                else:
+                    self.box.dotstar.fill(color)
+                self.box.dotstar.show()
         except Exception as e:
             print(f"Color setting error: {e}")
     
@@ -210,6 +210,7 @@ class DisplayController:
         """Display unauthorized message"""
         try:
             self.display_two_line_message("Unauthorized", "Access Denied", "red")
+            self.set_color("red")
         except Exception as e:
             print(f"Unauthorized display error: {e}")
     

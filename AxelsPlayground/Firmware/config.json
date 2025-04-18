@@ -49,7 +49,7 @@
         }
         ,
         "toggles": {
-            "enableKeypad": false,
+            "enableKeypad": true,
             "enableLCDScreen": true
         }
   }
