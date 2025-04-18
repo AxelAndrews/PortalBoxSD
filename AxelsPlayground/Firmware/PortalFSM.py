@@ -161,7 +161,7 @@ class Setup(State):
         
         # Update display with setup message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_message("Setting Up...", "yellow")
+            self.service.display.display_message("Setting Up...", "process_color")
         
         try:
             try:
@@ -226,7 +226,7 @@ class Shutdown(State):
         
         # Update display with shutdown message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_message("Shutting Down...", "red")
+            self.service.display.display_message("Shutting Down...", "unauth_color")
             
         self.service.box.set_equipment_power_on(False)
         self.service.shutdown(input_data["card_id"])
@@ -268,7 +268,7 @@ class AccessComplete(State):
         
         # Update display with completion message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_message("Session Complete", "blue")
+            self.service.display.display_message("Session Complete", "sleep_color")
         
         # Reset all state variables
         FSM_STATE["proxy_id"] = 0
@@ -316,7 +316,7 @@ class IdleUnknownCard(State):
         
         # Show processing message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_message("Processing Card...", "yellow")
+            self.service.display.display_message("Processing Card...", "process_color")
 
 class RunningUnknownCard(State):
     """
@@ -384,6 +384,12 @@ class RunningUnknownCard(State):
             not input_data["user_is_authorized"]):
             print("Unauthorized user card during grace period, transitioning to RunningNoCard state")
             return self.next_state(RunningNoCard, input_data)
+        elif (coming_from_no_card and 
+            input_data["card_type"] == CardType.USER_CARD and 
+            input_data["user_is_authorized"]):
+            print("Different authorized user card during grace period, transitioning to RunningNoCard state")
+            return self.next_state(RunningUnauthCard, input_data)
+            # return None
 
         # Check if time expired
         elif self.grace_expired():
@@ -403,7 +409,7 @@ class RunningUnknownCard(State):
         
         # Show processing message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_message("Processing Card...", "yellow")
+            self.service.display.display_message("Processing Card...", "process_color")
 
 class RunningAuthUser(State):
     """
@@ -501,7 +507,7 @@ class RunningNoCard(State):
         # Start grace timer on display controller if available
         if hasattr(self.service, 'display'):
             self.service.display.start_grace_timer(self.grace_delta.seconds)
-            self.service.display.display_two_line_message("Grace Period", "Insert Card", "yellow")
+            self.service.display.display_two_line_message("Grace Period", "Insert Card", "process_color")
         
         self.service.box.start_beeping(
             freq=500,
@@ -540,7 +546,7 @@ class RunningUnauthCard(State):
         
         # Show unauthorized message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_two_line_message("Unauthorized Card", "Insert Auth Card", "red")
+            self.service.display.display_two_line_message("Unauthorized Card", "Insert Auth Card", "unauth_color")
             
         self.service.box.start_beeping()
 
@@ -632,7 +638,7 @@ class RunningProxyCard(State):
         
         # Show proxy mode message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_two_line_message("Proxy Access", "Machine On", "cyan")
+            self.service.display.display_two_line_message("Proxy Access", "Machine On", "proxy_color")
 
 class RunningTrainingCard(State):
     """
@@ -665,4 +671,4 @@ class RunningTrainingCard(State):
         
         # Show training mode message if display controller is available
         if hasattr(self.service, 'display'):
-            self.service.display.display_two_line_message("Training Mode", "Machine On", "green")
+            self.service.display.display_two_line_message("Training Mode", "Machine On", "training_color")

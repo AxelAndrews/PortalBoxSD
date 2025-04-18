@@ -23,10 +23,17 @@ DEFAULT_PIN_CONFIG = {
     "RFID_SCK": 2,
     "RFID_MOSI": 11,
     "RFID_MISO": 10,
-    "SINGLE_BUTTON": 4
+    "SINGLE_BUTTON": 4,
+    "KEYPAD_1": 15,
+    "KEYPAD_2": 23,
+    "KEYPAD_3": 22,
+    "KEYPAD_4": 21,
+    "KEYPAD_5": 20,
+    "KEYPAD_6": 19,
+    "KEYPAD_7": 18
 }
 
-# Define colors
+# Define colors for LCD Screen
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
@@ -34,6 +41,9 @@ YELLOW = (255, 255, 0)
 MAGENTA = (255, 0, 255)
 CYAN = (0, 255, 255)
 WHITE = (255, 255, 255)
+LIGHTPURPLE=(204, 153, 255)
+ORANGE= (223, 32, 0)
+PURPLE= (128, 0, 128)
 
 class PortalBox:
     '''
@@ -45,6 +55,7 @@ class PortalBox:
         
         # Load pin configuration from settings if available
         self.config = DEFAULT_PIN_CONFIG.copy()
+        self.settings=settings
         
         # Override defaults with settings from config.json if available
         if 'pins' in settings:
@@ -62,10 +73,16 @@ class PortalBox:
                         print(f"Pin config override: {key} = {value}")
                         
         # Get if the Keypad is enabled
-        self.keypadEnabled=settings["toggles"]["enableKeypad"]
+        self.keypadEnabled=settings["toggles"]["enable_keypad"]
         #Initialize the single button if the keypad is disabled
         if not self.keypadEnabled:
             self.singleButton=Pin(self.config["SINGLE_BUTTON"], Pin.IN, Pin.PULL_UP)
+        else:
+            # Keypad configuration for a 3x4 matrix
+            self.cols = [Pin(x, Pin.IN, Pin.PULL_UP) for x in (self.config["KEYPAD_3"], self.config["KEYPAD_1"], self.config["KEYPAD_5"])]  # MicroPython pin numbers
+            self.rows = [Pin(x, Pin.OUT) for x in (self.config["KEYPAD_2"], self.config["KEYPAD_7"], self.config["KEYPAD_6"], self.config["KEYPAD_4"])]
+            # Define the key map (rows x columns)
+            self.keyBinds = ((1, 2, 3), (4, 5, 6), (7, 8, 9), ('*', 0, '#'))
             
         print("Initializing hardware with configuration:")
         for key, value in self.config.items():
@@ -73,8 +90,8 @@ class PortalBox:
             
         # Get buzzer settings
         self.buzzer_enabled = True
-        if "display" in settings and "enable_buzzer" in settings["display"]:
-            if str(settings["display"]["enable_buzzer"]).lower() in ("no", "false", "0"):
+        if "toggles" in settings and "enable_buzzer" in settings["toggles"]:
+            if str(settings["toggles"]["enable_buzzer"]).lower() in ("no", "false", "0"):
                 self.buzzer_enabled = False
                 print("Buzzer disabled in config")
             else:
@@ -93,7 +110,6 @@ class PortalBox:
         # Initialize the LCD with conservative timing
         self.lcd = RGBLCD(uart_id=1, tx_pin=5, baud_rate=9600, cols=16, rows=2)
         self.lcd.display_on()
-        self.setScreenColor("white")
         print("LCD initialized")
         
         # Initialize DotStar LEDs
@@ -257,8 +273,20 @@ class PortalBox:
                 return [False,""]
         else:
             return self.singleButton.value()
-            
-    
+
+    # Function to scan the keypad
+    def scan_keypad():
+        # Create an empty array to store pressed keys
+        pressed_keys = []
+        
+        for row_num, row in enumerate(self.rows):
+            row.value(0)  # Drive the row low (active)
+            for col_num, col in enumerate(self.cols):
+                if col.value() == 0:  # If the column is low, it means the key is pressed
+                    pressed_keys.append(self.keyBinds[row_num][col_num])
+            row.value(1)  # Drive the row high (inactive)
+
+        return pressed_keys
     def read_RFID_card(self):
         '''
         @return a positive integer representing the uid from the card on a successful read, -1 otherwise
@@ -349,7 +377,7 @@ class PortalBox:
         self.relay_pin.off()
         self.interlock_pin.off()
         
-        # # Turn off DotStar LEDs
+        # Turn off DotStar LEDs
         if self.dotstar:
             self.dotstar.cleanup()
         
@@ -365,17 +393,18 @@ class PortalBox:
     
     def setScreenColor(self, color):
         """Set the LCD backlight color"""
-        if color=="red":
+        if color=="unauth_color":
             self.lcd.set_rgb_color(RED[0], RED[1], RED[2])
-        elif color=="blue":
+        elif color=="sleep_color":
             self.lcd.set_rgb_color(BLUE[0], BLUE[1], BLUE[2])
-        elif color=="green":
+        elif color=="auth_color":
             self.lcd.set_rgb_color(GREEN[0], GREEN[1], GREEN[2])
-        elif color=="magenta":
-            self.lcd.set_rgb_color(MAGENTA[0], MAGENTA[1], MAGENTA[2])
-        elif color=="yellow":
+        elif color=="process_color":
             self.lcd.set_rgb_color(YELLOW[0], YELLOW[1], YELLOW[2])
-        elif color=="white":
-            self.lcd.set_rgb_color(WHITE[0], WHITE[1], WHITE[2])
-        elif color=="cyan":
+        elif color=="admin_mode":
             self.lcd.set_rgb_color(CYAN[0], CYAN[1], CYAN[2])
+        elif color=="proxy_color":
+            self.lcd.set_rgb_color(ORANGE[0], ORANGE[1], ORANGE[2])
+        elif color==self.settings["display"]["training_color"]:
+            self.lcd.set_rgb_color(PURPLE[0], PURPLE[1], PURPLE[2])
+            

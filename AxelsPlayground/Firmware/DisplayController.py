@@ -21,18 +21,15 @@ class DisplayController:
         self.progress_chars = ['-', '=', '=', '#']
         self.animation_frame = 0
         self.animation_last_update = 0
-        
         # Color shortcuts
         self.colors = {
-            "red": (255, 0, 0),
-            "green": (0, 255, 0),
-            "blue": (0, 0, 255),
-            "yellow": (255, 255, 0),
-            "magenta": (255, 0, 255),
-            "cyan": (0, 255, 255),
-            "white": (255, 255, 255),
-            "orange": (255, 165, 0),
-            "purple": (128, 0, 128)
+            "unauth_color": (0, 0, 255),
+            "auth_color": (255, 0, 0),
+            "sleep_color": (0, 255, 0),
+            "process_color": (255, 0, 255),
+            "admin_mode": (255, 255, 0),
+            "proxy_color": (32, 0, 223),
+            "training_color": (0, 128, 128),
         }
     
     def set_color(self, color_name):
@@ -49,10 +46,10 @@ class DisplayController:
             self.last_color = color_name
             self.box.setScreenColor(color_name)
             
-            # # Use existing dotstar if available
+            # Use existing dotstar if available
             if hasattr(self.box, 'dotstar'):
                 color = self.colors.get(color_name.lower(), (0, 0, 255))# Default to blue
-                if color_name.lower()=="blue":
+                if color_name.lower()=="sleep_color":
                     self.box.dotstar.rainbow_cycle(1000)
                 else:
                     self.box.dotstar.fill(color)
@@ -145,12 +142,12 @@ class DisplayController:
             user_info = self.box.service.db.get_user(user_id)
             if user_info and user_info[0]:
                 name = user_info[0].split(" ")[0]  # Get just the first name
-                self.display_two_line_message("Welcome " + name, "Machine On", "green")
+                self.display_two_line_message("Welcome " + name, "Machine On", "auth_color")
             else:
-                self.display_two_line_message("Welcome", "Machine On", "green")
+                self.display_two_line_message("Welcome", "Machine On", "auth_color")
         except Exception as e:
             print(f"Error getting user: {e}")
-            self.display_two_line_message("Welcome", "Machine On", "green")
+            self.display_two_line_message("Welcome", "Machine On", "auth_color")
     
     def start_grace_timer(self, total_seconds):
         """
@@ -184,7 +181,7 @@ class DisplayController:
             
             # Format as "Insert Card" on first line, progress bar and timer on second
             time_str = f"{int(remaining)}s"
-            self.display_two_line_message("Insert Card", progress_bar + " " + time_str, "yellow")
+            self.display_two_line_message("Insert Card", progress_bar + " " + time_str, "process_color")
             
             return remaining
         except Exception as e:
@@ -194,7 +191,7 @@ class DisplayController:
     def display_idle_instructions(self):
         """Display instructions in idle mode"""
         try:
-            self.display_two_line_message("Welcome!", "Scan Card to Use", "blue")
+            self.display_two_line_message("Welcome!", "Scan Card to Use", "sleep_color")
         except Exception as e:
             print(f"Idle instructions error: {e}")
     
@@ -202,15 +199,14 @@ class DisplayController:
         """Display card ID information"""
         try:
             id_str = str(card_id) if card_id > 0 else "No Card"
-            self.display_two_line_message("Card ID:", id_str, "cyan")
+            self.display_two_line_message("Card ID:", id_str, "admin_mode")
         except Exception as e:
             print(f"Card ID display error: {e}")
     
     def display_unauthorized(self):
         """Display unauthorized message"""
         try:
-            self.display_two_line_message("Unauthorized", "Access Denied", "red")
-            self.set_color("red")
+            self.display_two_line_message("Unauthorized", "Access Denied", "unauth_color")
         except Exception as e:
             print(f"Unauthorized display error: {e}")
     
@@ -231,7 +227,7 @@ class DisplayController:
                 scan_text = f"Scanning{dots}"
                 
                 # Display the animation
-                self.display_two_line_message(inputText, scan_text, "cyan")
+                self.display_two_line_message(inputText, scan_text, "admin_mode")
                 
                 self.animation_last_update = current_time
         except Exception as e:

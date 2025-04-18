@@ -21,22 +21,22 @@ class BuzzerController:
         
         if settings and "display" in settings:
             # Override enabled status from settings if present
-            if "enable_buzzer" in settings["display"]:
+            if "enable_buzzer" in settings["toggles"]:
                 # Check if the value is a string or boolean
-                if isinstance(settings["display"]["enable_buzzer"], bool):
-                    self.enabled = settings["display"]["enable_buzzer"]
+                if isinstance(settings["toggles"]["enable_buzzer"], bool):
+                    self.enabled = settings["toggles"]["enable_buzzer"]
                 else:
-                    self.enabled = not (str(settings["display"]["enable_buzzer"]).lower() in ("no", "false", "0"))
+                    self.enabled = not (str(settings["toggles"]["enable_buzzer"]).lower() in ("no", "false", "0"))
                 print(f"Buzzer enabled from settings: {self.enabled}")
                 
             # Check if PWM is enabled for the buzzer
             self.pwm_enabled = True
-            if "buzzer_pwm" in settings["display"]:
+            if "buzzer_pwm" in settings["toggles"]:
                 # Check if the value is a string or boolean
-                if isinstance(settings["display"]["buzzer_pwm"], bool):
-                    self.pwm_enabled = settings["display"]["buzzer_pwm"]
+                if isinstance(settings["toggles"]["buzzer_pwm"], bool):
+                    self.pwm_enabled = settings["toggles"]["buzzer_pwm"]
                 else:
-                    self.pwm_enabled = not (str(settings["display"]["buzzer_pwm"]).lower() in ("no", "false", "0"))
+                    self.pwm_enabled = not (str(settings["toggles"]["buzzer_pwm"]).lower() in ("no", "false", "0"))
         else:
             self.pwm_enabled = True
         
