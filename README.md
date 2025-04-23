@@ -1,6 +1,6 @@
 # PortalBoxSD
 
-**Repository for the Portal Box V4** being developed for Bucknell's Electrical Engineering Senior Design (2024-2025).
+**Repository for the Portal Box V4** being developed for Bucknell's Electrical and Computer Engineering Senior Design (2024-2025).
 
 ## Table of Contents
 - [Overview](#overview)
