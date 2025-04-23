@@ -33,17 +33,6 @@
             "ssid": "bucknell_iot",
             "password": ""
         },
-        "email": {
-        "from_address": "portalboxnotifications@gmail.com",
-        "smtp_server": "smtp.gmail.com",
-        "smtp_port": "587",
-        "auth_user": "portalboxnotifications@gmail.com",
-        "auth_password": "SeniorDesign2025!",
-        "cc_address": "",
-        "bcc_address": "",
-        "reply_to": "",
-        "use_ssl": "false"
-        },
         "pins": {
             "INTERLOCK_PIN": 9,
             "BUZZER_PIN": 6,
