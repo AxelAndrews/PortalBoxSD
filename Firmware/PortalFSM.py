@@ -323,14 +323,10 @@ class RunningUnknownCard(State):
     A Card has been read from the no card grace period
     """
     def __call__(self, input_data):
-        print(f"Is USER? {input_data['card_type'] == CardType.USER_CARD}")
-        print(f"User authority level: {FSM_STATE['user_authority_level']}")
-        print(f"Proxy Id: {FSM_STATE['proxy_id']}")
-        print(f"Allow proxy: {FSM_STATE['allow_proxy']}")
-        print(f"Previous state: {FSM_STATE['last_state_name']}")
-        print(f"Auth user ID: {FSM_STATE['auth_user_id']}")
+        print(f"RunningUnknownCard __call__ with input: card_id={input_data['card_id']}, type={input_data['card_type']}")
+        print(f"user_is_authorized: {input_data['user_is_authorized']}")
         
-        # Debug logging to help diagnose training mode issues
+        # Debug information for understanding the training mode conditions
         print(f"Training mode check: Card type is USER_CARD? {input_data['card_type'] == CardType.USER_CARD}")
         print(f"Training mode check: Authority level >= 3? {FSM_STATE['user_authority_level'] >= 3}")
         print(f"Training mode check: Not from proxy (proxy_id <= 0)? {FSM_STATE['proxy_id'] <= 0}")
@@ -339,6 +335,7 @@ class RunningUnknownCard(State):
         
         # Coming from RunningNoCard (during grace period)
         coming_from_no_card = FSM_STATE["last_state_name"] == "RunningNoCard"
+        print(f"Coming from RunningNoCard? {coming_from_no_card}")
         
         # Proxy card during grace period
         if (
@@ -357,6 +354,7 @@ class RunningUnknownCard(State):
 
         # If it's the same user as before then just go back to auth user
         elif input_data["card_id"] == FSM_STATE["auth_user_id"]:
+            print("Same authorized user card detected - returning to RunningAuthUser")
             return self.next_state(RunningAuthUser, input_data)
 
         # Check for training mode conditions
@@ -377,20 +375,22 @@ class RunningUnknownCard(State):
             print("All training mode criteria met! Entering RunningTrainingCard")
             return self.next_state(RunningTrainingCard, input_data)
         
-        # Any other card during grace period, just keep showing the current state
-        # Don't actually change state to avoid bouncing
-        if (coming_from_no_card and 
-            input_data["card_type"] == CardType.USER_CARD and 
-            not input_data["user_is_authorized"]):
-            print("Unauthorized user card during grace period, transitioning to RunningNoCard state")
-            return self.next_state(RunningNoCard, input_data)
+        # FIXED: If we're coming from RunningNoCard and this is a different user card,
+        # but it's authorized, go to RunningAuthUser instead of blocking or going to RunningUnauthCard
         elif (coming_from_no_card and 
             input_data["card_type"] == CardType.USER_CARD and 
             input_data["user_is_authorized"]):
-            print("Different authorized user card during grace period, transitioning to RunningNoCard state")
+            print("Different authorized user card during grace period, switching to new authorized user")
+            return self.next_state(RunningAuthUser, input_data)
+        
+        # Any other unauthorized card during grace period
+        elif (coming_from_no_card and 
+            input_data["card_type"] == CardType.USER_CARD and 
+            not input_data["user_is_authorized"] and
+            FSM_STATE["user_authority_level"] < 3):  # Not a trainer/admin
+            print("Unauthorized user card during grace period, not a trainer - going to RunningUnauthCard")
             return self.next_state(RunningUnauthCard, input_data)
-            # return None
-
+            
         # Check if time expired
         elif self.grace_expired():
             print("Exiting Grace period because the grace period expired")

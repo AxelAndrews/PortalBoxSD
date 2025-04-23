@@ -199,13 +199,10 @@ class PortalBoxApplication():
         self.display.display_message("Ready!", "auth_color")
         time.sleep(0.5)
 
-    # Fixes for the get_inputs and handle_card_reader_mode methods in Service.py
-
     def get_inputs(self, old_input_data):
         """
         Gets new inputs for the FSM and returns the dictionary
-        
-        With improved card removal handling
+        With improved card detection during grace period
         """
         print("Getting inputs for FSM")
         
@@ -271,16 +268,8 @@ class PortalBoxApplication():
         # Check if this is a card removal event (old card present, new card not present)
         card_removal = (old_input_data["card_id"] > 0 and card_id <= 0)
         
-        if self.current_state_name=="RunningNoCard" and card_id != self.lastUser:
-            return {
-                "card_id": -1,
-                "user_is_authorized": False,
-                "card_type": CardType.INVALID_CARD,
-                "user_authority_level": 0,
-                "button_pressed": self.box.has_button_been_pressed()[0],
-                "pin": -1,
-                "card_removal": card_removal
-            }
+        # FIXED: Removed the special case for RunningNoCard that was blocking new cards
+        # This was preventing training mode from being entered properly
         
         # If a card was just removed and we're not in RunningNoCard state,
         # display a card removal message before continuing
@@ -322,6 +311,8 @@ class PortalBoxApplication():
                 "pin": details['pin'],
                 "card_removal": card_removal
             }
+            
+            # Only verify PIN if not in grace period to avoid interfering with training mode
             if self.current_state_name!="RunningNoCard":
                 new_input_data["user_is_authorized"]=self.verifyPin(new_input_data["user_is_authorized"],new_input_data["pin"])
                 self.lastUser=new_input_data["card_id"]
