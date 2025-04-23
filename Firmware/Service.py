@@ -542,8 +542,8 @@ class PortalBoxApplication():
                                 currPin += digit  # Append the digit to the PIN
                                 
                                 # Display PIN with masking (show actual digits for debugging)
-                                pinStar = currPin  # For debugging - shows actual PIN
-                                # pinStar = "*" * len(currPin)  # Uncomment this for production - shows masked PIN
+                                #pinStar = currPin  # For debugging - shows actual PIN
+                                pinStar = "*" * len(currPin)  # Uncomment this for production - shows masked PIN
                                 
                                 self.display.display_two_line_message(
                                     "Pin:" + pinStar, 
