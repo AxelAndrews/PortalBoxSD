@@ -204,15 +204,8 @@ class PortalBoxApplication():
     def get_inputs(self, old_input_data):
         """
         Gets new inputs for the FSM and returns the dictionary
-
-        @returns a dictionary of the form
-                "card_id": (int)The card ID which was read,
-                "user_is_authorized": (boolean) Whether or not the user is authorized,
-                    for the current machine
-                "card_type": (CardType enum) the type of card,
-                "user_authority_level": (int) The authority of the user, 1 for normal user, 2 for trainer, 3 for admin
-                "button_pressed": (boolean) whether or not the button has been
-                    pressed since the last time it was checked
+        
+        With improved card removal handling
         """
         print("Getting inputs for FSM")
         
@@ -274,6 +267,10 @@ class PortalBoxApplication():
         
         # Convert hex string to int if card was read
         card_id = int(card_id, 16) if card_id != -1 else -1
+        
+        # Check if this is a card removal event (old card present, new card not present)
+        card_removal = (old_input_data["card_id"] > 0 and card_id <= 0)
+        
         if self.current_state_name=="RunningNoCard" and card_id != self.lastUser:
             return {
                 "card_id": -1,
@@ -281,8 +278,17 @@ class PortalBoxApplication():
                 "card_type": CardType.INVALID_CARD,
                 "user_authority_level": 0,
                 "button_pressed": self.box.has_button_been_pressed()[0],
-                "pin": -1
+                "pin": -1,
+                "card_removal": card_removal
             }
+        
+        # If a card was just removed and we're not in RunningNoCard state,
+        # display a card removal message before continuing
+        if card_removal and self.current_state_name not in ["IdleNoCard", "RunningNoCard"]:
+            print("Card removal detected")
+            self.display.display_message("Card Removed", "process_color")
+            time.sleep(0.5)  # Short delay to show the message
+        
         # If a card is present, and old_input_data showed either no card present, or a different card present
         if(card_id > 0 and card_id != old_input_data["card_id"]):
             print(f"Card with ID: {card_id} read, Getting info from DB")
@@ -313,7 +319,8 @@ class PortalBoxApplication():
                 "card_type": details["card_type"],
                 "user_authority_level": details["user_authority_level"],
                 "button_pressed": self.box.has_button_been_pressed()[0],
-                "pin": details['pin']
+                "pin": details['pin'],
+                "card_removal": card_removal
             }
             if self.current_state_name!="RunningNoCard":
                 new_input_data["user_is_authorized"]=self.verifyPin(new_input_data["user_is_authorized"],new_input_data["pin"])
@@ -347,24 +354,25 @@ class PortalBoxApplication():
 
         # If no card is present, just update the button
         elif(card_id <= 0):
-            # self.display.display_message("xd","unauth_color")
             new_input_data = {
                 "card_id": -1,
                 "user_is_authorized": False,
                 "card_type": CardType.INVALID_CARD,
                 "user_authority_level": 0,
                 "button_pressed": self.box.has_button_been_pressed()[0],
-                "pin": -1
+                "pin": -1,
+                "card_removal": card_removal
             }
         # Else just use the old data and update the button
         # i.e., if there is a card, but it's the same as before
         else:
-            # self.display.display_message("dx","unauth_color")
             new_input_data = dict(old_input_data)  # Create a copy of the dictionary
             new_input_data["button_pressed"] = self.box.has_button_been_pressed()[0]
+            new_input_data["card_removal"] = card_removal
 
         print(f"New input data: {new_input_data}")
         return new_input_data
+
     
     def get_inputs_padless(self, old_input_data):
         """
@@ -458,11 +466,36 @@ class PortalBoxApplication():
         return new_input_data
     
     def loopRainbowCycle(self):
-        currCard=self.box.read_RFID_card()
-        currCard = int(card_id, 16) if currCard != -1 else -1
-        while int(currCard, 16) == -1:
-            self.display.set_color("sleep_color")
-            currCard=self.box.read_RFID_card()
+        """
+        Displays a rainbow cycle on the LCD until a card is detected
+        Fixed to handle type conversions properly
+        """
+        try:
+            # Initial card read
+            curr_card = self.box.read_RFID_card()
+            
+            # Loop until a card is detected
+            while curr_card == -1:  # No card detected
+                self.display.set_color("sleep_color")
+                # Get new card state
+                curr_card = self.box.read_RFID_card()
+                time.sleep(0.1)  # Small delay to avoid excessive CPU usage
+                
+            # When card is detected, convert to int if it's a hex string
+            if curr_card != -1:
+                try:
+                    # Only try to convert if it's a string (hex ID)
+                    if isinstance(curr_card, str):
+                        return int(curr_card, 16)
+                    return curr_card
+                except (ValueError, TypeError) as e:
+                    print(f"Error converting card ID: {e}")
+                    return -1
+            
+            return -1
+        except Exception as e:
+            print(f"Error in loopRainbowCycle: {e}")
+            return -1
             
     def verifyPin(self, isAuthorized, userPin):
         if isAuthorized == True:
@@ -556,27 +589,63 @@ class PortalBoxApplication():
         return False
                 
     def handle_card_reader_mode(self, old_input):
-        time.sleep(1)
-        old_card_id=old_input
-        while True:
-            card_id = self.box.read_RFID_card()
-            if "*" in Keypad.scan_keypad() and not self.box.has_button_been_pressed()[0]:
-                print("Exiting card reader mode")
-                self.display.display_two_line_message("Exiting", "Card Reader Mode", "sleep_color")
-                time.sleep(1)
-                self.cert_mode_state = 'init'  # Reset state for next time
-                self.display.display_two_line_message("Welcome!", "Scan Card to Use", "sleep_color")
-                self.loopRainbowCycle()
-                return False
-            if card_id == -1 and old_card_id==-1:
-                self.display.animate_scanning("Card ID Reader")
-            elif card_id == old_card_id:
-                pass
-            else:
-                decimalVal=int(str(card_id),16)
-                self.display.display_two_line_message("Card ID:", f"{decimalVal}", "admin_mode")
+        """
+        Handles the card reader mode, showing card IDs when cards are detected
+        Fixed to properly handle type conversions and avoid crashes
+        """
+        try:
+            time.sleep(1)
+            old_card_id = old_input
+            
+            while True:
+                # Check for exit command (* key)
+                if "*" in Keypad.scan_keypad() and not self.box.has_button_been_pressed()[0]:
+                    print("Exiting card reader mode")
+                    self.display.display_two_line_message("Exiting", "Card Reader Mode", "sleep_color")
+                    time.sleep(1)
+                    self.cert_mode_state = 'init'  # Reset state for next time
+                    self.display.display_two_line_message("Welcome!", "Scan Card to Use", "sleep_color")
+                    
+                    # Don't call loopRainbowCycle on exit to avoid potential crashes
+                    # Just return False to exit the mode
+                    return False
                 
-            old_card_id= card_id
+                # Read card
+                card_id = self.box.read_RFID_card()
+                
+                # Handle animation and display
+                if card_id == -1 and old_card_id == -1:
+                    # No card detected, show animation
+                    self.display.animate_scanning("Card ID Reader")
+                elif card_id == old_card_id:
+                    # Same card still present, no update needed
+                    pass
+                else:
+                    # New card detected, display ID
+                    try:
+                        # Only convert to int if card_id is a string (hex ID)
+                        if card_id != -1 and isinstance(card_id, str):
+                            decimal_val = int(card_id, 16)
+                            self.display.display_two_line_message("Card ID:", f"{decimal_val}", "admin_mode")
+                    except (ValueError, TypeError) as e:
+                        print(f"Error converting card ID: {e}")
+                        # Show error but continue
+                        self.display.display_two_line_message("Card Error", "Try Again", "unauth_color")
+                        time.sleep(1)
+                
+                # Update old card ID for next iteration
+                old_card_id = card_id
+                
+                # Small delay to avoid excessive CPU usage
+                time.sleep(0.1)
+        
+        except Exception as e:
+            print(f"Error in card reader mode: {e}")
+            self.display.display_two_line_message("Error", "Exiting Mode", "unauth_color")
+            time.sleep(1)
+            return False
+            
+        # Should never reach here due to while True loop, but added for completeness
         return True
     
     def handle_certification_mode(self):
@@ -1031,9 +1100,40 @@ def main():
                 input_data_new = service.get_inputs_padless(input_data)
             print(f"Input data: {input_data_new}")
             
+            # Handle card removal - if card was just removed, don't show additional messages
+            # Jump directly to the appropriate state based on the current state
+            card_removed = input_data_new.get("card_removal", False)
+            if card_removed and current_state_name not in ["IdleNoCard", "RunningNoCard", "Shutdown"]:
+                print("Card removal detected - transitioning to appropriate state")
+                
+                # If card was removed while machine was running, go to RunningNoCard (grace period)
+                if current_state_name in ["RunningAuthUser", "RunningProxyCard", "RunningTrainingCard"]:
+                    print("Card removed while machine was running - entering grace period")
+                    # Create a new RunningNoCard state
+                    fsm_state = fsm.RunningNoCard(service, input_data_new)
+                    service.grace_timer_started = True
+                    service.update_display_for_state("RunningNoCard", -1)
+                    last_state_class = fsm_state.__class__
+                else:
+                    # For other states, go to IdleNoCard
+                    print("Card removed - returning to idle state")
+                    fsm_state = fsm.IdleNoCard(service, input_data_new)
+                    service.update_display_for_state("IdleNoCard", -1)
+                    last_state_class = fsm_state.__class__
+                
+                # Update input data dictionary
+                for key in input_data:
+                    if key in input_data_new:
+                        input_data[key] = input_data_new[key]
+                
+                service.box.update()
+                # Skip the rest of the loop to avoid processing the FSM with the removed card
+                continue
+            
             # Update input data dictionary
             for key in input_data:
-                input_data[key] = input_data_new[key]
+                if key in input_data_new:
+                    input_data[key] = input_data_new[key]
             
             # Call the state handler which might return a new state
             print(f"Calling FSM state: {fsm_state.__class__.__name__}")
