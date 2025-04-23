@@ -466,44 +466,94 @@ class PortalBoxApplication():
             
     def verifyPin(self, isAuthorized, userPin):
         if isAuthorized == True:
+            # Ensure userPin is converted to string for comparison
+            if userPin is None or userPin == -1:
+                print("No PIN available for this user, denying access")
+                self.display.display_two_line_message("Invalid PIN", "Access Denied", "unauth_color")
+                time.sleep(1.5)
+                return False
+                
+            # Convert userPin to string if it's an integer
+            userPin = str(userPin) if isinstance(userPin, int) else userPin
+            
             attempts = 3  # Start with 3 attempts
             self.display.display_two_line_message("Please Enter Pin", "Attempts:" + str(attempts), "sleep_color")
+            
             while attempts > 0:  # Run while attempts are greater than 0
                 currPin = ""
                 while len(currPin) < 4:  # Ensure the PIN is 4 digits long
-                    card_id=self.box.read_RFID_card()
-                    card_id=int(card_id, 16)
-                    if card_id==-1:
+                    # Check for card removal during PIN entry
+                    card_id = self.box.read_RFID_card()
+                    if card_id == -1:  # Card was removed
+                        print("Card removed during PIN verification")
+                        self.display.display_message("Card Removed", "unauth_color")
+                        time.sleep(1)
                         return False
-                    button_pressed = self.box.has_button_been_pressed()[1]  # Get the pressed button (a list with a number)
-                    if button_pressed and isinstance(button_pressed[0], int):  # Check if the list has a number
-                        digit = str(button_pressed[0])  # Convert the number to a string
-                        print(digit)
-                        currPin += digit  # Append the digit to the PIN
-                        pinStar="*"*len(currPin)
-                        pinStar=currPin
-                        self.display.display_message("Pin:" + pinStar, "sleep_color")
-                        self.display.display_two_line_message("Pin:" + pinStar, "Attempts:" + str(attempts), "sleep_color")
-                    time.sleep(0.0001)  # Small delay to avoid excessive CPU usage
+                    
+                    # Convert card_id from hex string to integer if it's valid
+                    try:
+                        card_id = int(card_id, 16) if card_id != -1 else -1
+                    except (ValueError, TypeError):
+                        # Handle case where card_id is already an integer or invalid
+                        if not isinstance(card_id, int):
+                            card_id = -1
+                    
+                    # Check if card is still present
+                    if card_id == -1:
+                        print("Card removed during PIN verification")
+                        self.display.display_message("Card Removed", "unauth_color")
+                        time.sleep(1)
+                        return False
+                    
+                    # Get the pressed button
+                    button_pressed = self.box.has_button_been_pressed()[1]
+                    
+                    # Check if a button was pressed and it contains a digit
+                    if button_pressed and len(button_pressed) > 0:
+                        # Ensure we have a valid integer in the button_pressed list
+                        try:
+                            if isinstance(button_pressed[0], int):
+                                digit = str(button_pressed[0])  # Convert the number to a string
+                                print(digit)
+                                currPin += digit  # Append the digit to the PIN
+                                
+                                # Display PIN with masking (show actual digits for debugging)
+                                pinStar = currPin  # For debugging - shows actual PIN
+                                # pinStar = "*" * len(currPin)  # Uncomment this for production - shows masked PIN
+                                
+                                self.display.display_two_line_message(
+                                    "Pin:" + pinStar, 
+                                    "Attempts:" + str(attempts), 
+                                    "sleep_color"
+                                )
+                        except (IndexError, TypeError) as e:
+                            print(f"Button press error: {e}")
+                    
+                    time.sleep(0.1)  # Small delay to avoid excessive CPU usage
                 
-                # Check if the PIN is "0000" or if we've tried 3 times without success
-                if currPin == userPin:  # If the entered PIN is "0000", break out of the loop
+                # Check if the entered PIN matches the user's PIN
+                print(f"Comparing PINs: entered={currPin}, user={userPin}")
+                if currPin == userPin:
+                    print("PIN verified successfully")
+                    self.display.display_message("PIN Correct", "auth_color")
+                    time.sleep(0.5)
                     return True
-                    break
                 elif len(currPin) == 4 and attempts > 1:
                     self.display.display_message("Incorrect Pin", "unauth_color")
                     time.sleep(0.5)
                     self.display.display_two_line_message("Pin:", "Attempts:" + str(attempts-1), "sleep_color")
                 
                 # Decrement attempts after a failed attempt
-                attempts -= 1  # Decrease attempts
+                attempts -= 1
                 
                 if attempts == 0:
                     self.display.display_message("Incorrect Pin", "unauth_color")
                     time.sleep(1)
                     self.display.display_message("Please Retry!", "unauth_color")
                     return False
-                    break
+        
+        # If we get here, the user is not authorized or something went wrong
+        return False
                 
     def handle_card_reader_mode(self, old_input):
         time.sleep(1)
