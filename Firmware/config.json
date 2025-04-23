@@ -1,0 +1,74 @@
+{
+    "db": {
+            "user": "admin",
+            "password": "PORTALBOX",
+            "host": "portalboxdb.cbwumiue49n9.us-east-2.rds.amazonaws.com",
+            "database": "portalboxdb",
+            "website": "ec2-3-14-141-222.us-east-2.compute.amazonaws.com",
+            "api": "box.php",
+            "bearer_token": "290900415d2d7aac80229cdea4f90fbf"
+        },
+        "display": {
+            "setup_color":         [255, 255, 255],   
+            "setup_color_db":      [255, 255, 0],    
+            "setup_color_email":   [255, 0, 255],     
+            "setup_color_role":    [0, 255, 255],     
+            "auth_color":          [255, 0, 0],       
+            "proxy_color":         [32, 0, 223],      
+            "training_color":      [0, 128, 128],     
+            "sleep_color":         [0, 255, 0],       
+            "unauth_color":        [0, 0, 255],
+            "admin_mode":          [153, 255, 204],
+            "no_card_grace_color": [255, 0, 255],     
+            "grace_timeout_color": [32, 0, 223],      
+            "timeout_color":       [0, 0, 255],       
+            "unauth_card_grace_color": [128, 0, 255],
+            "flash_rate": 3,
+            "led_type": "DOTSTAR"
+        },
+        "user_exp": {
+            "grace_period": 10
+        },
+        "wifi": {
+            "ssid": "bucknell_iot",
+            "password": ""
+        },
+        "email": {
+        "from_address": "portalboxnotifications@gmail.com",
+        "smtp_server": "smtp.gmail.com",
+        "smtp_port": "587",
+        "auth_user": "portalboxnotifications@gmail.com",
+        "auth_password": "SeniorDesign2025!",
+        "cc_address": "",
+        "bcc_address": "",
+        "reply_to": "",
+        "use_ssl": "false"
+        },
+        "pins": {
+            "INTERLOCK_PIN": 9,
+            "BUZZER_PIN": 6,
+            "RELAY_PIN": 7,
+            "DOTSTAR_DATA": 13,
+            "DOTSTAR_CLOCK": 12,
+            "LCD_TX": 5,
+            "RFID_SDA": 3,
+            "RFID_SCK": 2,
+            "RFID_MOSI": 11,
+            "RFID_MISO": 10,
+            "SINGLE_BUTTON": 4,
+            "KEYPAD_1": 15,
+            "KEYPAD_2": 23,
+            "KEYPAD_3": 22,
+            "KEYPAD_4": 21,
+            "KEYPAD_5": 20,
+            "KEYPAD_6": 19,
+            "KEYPAD_7": 18
+        }
+        ,
+        "toggles": {
+            "enable_buzzer": false,
+            "buzzer_pwm": false,
+            "enable_keypad": true,
+            "enable_LCDScreen": true
+        }
+  }
