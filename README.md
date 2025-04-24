@@ -12,13 +12,12 @@
 PortalBoxSD is the latest development of the Portal Box platform. It is a hardware-software solution designed to allow authorized users to be able to use machines. The purpose of this version is to expand on the capabilities of the device by adding accessibility features such as a LCD screen or a keypad while also reducing the cost of the device.
 
 ## Team Members
-- Axel Andrews- Electrical Engineering
-- Peter Beaudette- Electrical Engineering
-- Kevin Duong- Computer Engineering
-- Aidan Flynn- Electrical Engineering 
-- Colton Jiorle- Electrical Engineering
-- James Powick- Electrical Engineering
-
+- Axel Andrews- Electrical Engineering (Project Manager)
+- James Powick- Electrical Engineering (Performance Engineer)
+- Peter Beaudette- Electrical Engineering (Design Engineer)
+- Kevin Duong- Computer Engineering (Design Engineer)
+- Aidan Flynn- Electrical Engineering (Design Engineer)
+- Colton Jiorle- Electrical Engineering (Design Engineer)
 ## Getting Started
 Located below are links for our guides on different aspects of the box including: assembly, software installation, etc
 [Google Drive Link](https://drive.google.com/drive/folders/1s6WmsmyukLXGhd7-7x2exbdhO60ghp-A?dmr=1&ec=wgc-drive-hero-goto)\
