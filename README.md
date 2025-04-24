@@ -21,6 +21,7 @@ PortalBoxSD is the latest development of the Portal Box platform. It is a hardwa
 
 ## Getting Started
 Located below are links for our guides on different aspects of the box including: assembly, software installation, etc
+[Google Drive Link](https://drive.google.com/drive/folders/1s6WmsmyukLXGhd7-7x2exbdhO60ghp-A?dmr=1&ec=wgc-drive-hero-goto)\
 [User Guide](https://docs.google.com/document/d/1zy0pSIEoggrR6NhjHCJBrImPLDNS1P6n5tHyGhDeywY/edit?usp=drive_link)\
 [Firmware/Software Tutorial](https://docs.google.com/document/d/11z781lNE8TxHJU41pB2VSldeOFCZK0iMvEdZmzCk6B8/edit?usp=drive_link)\
 [MakerPortal/Database Tutorial](https://docs.google.com/document/d/1Efe3J8czig7-NeUkT0MoV11OhivSSvs8YGzT39vNRik/edit?usp=sharing)\

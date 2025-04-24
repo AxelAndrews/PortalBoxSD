@@ -4,6 +4,7 @@ import sys
 """
 For MicroPython, This script will take in a directory and copy everything in that file to a microcontroller
 ie. py/python/python3 <directoryName>
+EX) py Firmware/ will copy the contents of Firmware/ onto the ESP32
 NOTE: Because copying files may abruptly crash, it may take multiple calls to be able to copy all the files over
 """
 def create_directory_on_device(dest_dir):
