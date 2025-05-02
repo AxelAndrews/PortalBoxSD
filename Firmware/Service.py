@@ -206,6 +206,22 @@ class PortalBoxApplication():
         """
         print("Getting inputs for FSM")
         
+        # Track state transitions for PIN verification
+        # This helps us know when we need to force PIN verification
+        if not hasattr(self, 'previous_state'):
+            self.previous_state = None
+        
+        # Record the previous state for tracking transitions
+        self.previous_state = self.current_state_name
+        
+        # Reset lastUser if we've transitioned to or from AccessComplete
+        # This ensures PIN verification happens after a session ends
+        if self.current_state_name == "AccessComplete" or self.previous_state == "AccessComplete":
+            self.lastUser = 0
+            print("Reset lastUser due to AccessComplete state transition")
+        
+        # Rest of the method remains unchanged...
+        
         # Check for entering card reader mode specifically from IdleNoCard state
         if (self.current_state_name == "IdleNoCard" and 
             "*" in Keypad.scan_keypad() and 
@@ -489,14 +505,34 @@ class PortalBoxApplication():
             return -1
             
     def verifyPin(self, isAuthorized, userPin):
-        if isAuthorized == True:
+        """
+        Verify user's PIN for authorized access
+        
+        Args:
+            isAuthorized: Whether the user is initially authorized
+            userPin: The PIN associated with the user
+            
+        Returns:
+            bool: True if PIN is verified, False otherwise
+        """
+        # Important: If we're coming from AccessComplete, always require PIN verification
+        # This prevents security issues when grace period expires
+        force_verify = self.current_state_name in ["AccessComplete", "IdleUnknownCard"]
+        
+        # CRITICAL: If we're coming from AccessComplete or IdleUnknownCard, always verify PIN
+        # regardless of isAuthorized status (force verification)
+        if force_verify or isAuthorized == True:
+            # Show clear message when forced verification is happening
+            if force_verify:
+                print("FORCED PIN VERIFICATION due to state:", self.current_state_name)
+                
             # Ensure userPin is converted to string for comparison
             if userPin is None or userPin == -1:
                 print("No PIN available for this user, denying access")
                 self.display.display_two_line_message("Invalid PIN", "Access Denied", "unauth_color")
                 time.sleep(1.5)
                 return False
-                
+                    
             # Convert userPin to string if it's an integer
             userPin = str(userPin) if isinstance(userPin, int) else userPin
             
@@ -541,9 +577,8 @@ class PortalBoxApplication():
                                 print(digit)
                                 currPin += digit  # Append the digit to the PIN
                                 
-                                # Display PIN with masking (show actual digits for debugging)
-                                #pinStar = currPin  # For debugging - shows actual PIN
-                                pinStar = "*" * len(currPin)  # Uncomment this for production - shows masked PIN
+                                # Display PIN with masking
+                                pinStar = "*" * len(currPin)  # Shows masked PIN
                                 
                                 self.display.display_two_line_message(
                                     "Pin:" + pinStar, 
@@ -916,6 +951,8 @@ class PortalBoxApplication():
             if remaining <= 0:
                 # Grace period ended, reset flag
                 self.grace_timer_started = False
+                return True  # Indicate grace period has ended
+        return False  # Grace period still running or not in grace period
 
     def get_user_auths(self, card_id):
         '''
@@ -1126,15 +1163,28 @@ def main():
                 if key in input_data_new:
                     input_data[key] = input_data_new[key]
             
-            # Call the state handler which might return a new state
-            print(f"Calling FSM state: {fsm_state.__class__.__name__}")
-            new_state = fsm_state(input_data)
-            
             # Skip state machine processing if in card reader mode
             if service.in_card_reader_mode:
                 service.box.update()
                 time.sleep(0.1)
                 continue
+
+            # ADD THIS CODE HERE: Check if grace period has ended naturally
+            # Update grace period display and check if it has ended
+            if service.current_state_name == "RunningNoCard":
+                grace_ended = service.update_grace_display_if_needed()
+                if grace_ended:
+                    # Grace period ended naturally, transition to AccessComplete
+                    print("Grace period ended via display timer")
+                    fsm_state = fsm.AccessComplete(service, input_data)
+                    service.update_display_for_state(fsm_state.__class__.__name__, input_data["card_id"])
+                    last_state_class = fsm_state.__class__
+                    service.box.update()
+                    continue
+            
+            # Call the state handler which might return a new state
+            print(f"Calling FSM state: {fsm_state.__class__.__name__}")
+            new_state = fsm_state(input_data)
             
             # Check if we need to transition state
             if new_state:
@@ -1150,6 +1200,14 @@ def main():
                     if not input_data["user_is_authorized"] and input_data["card_type"] == CardType.USER_CARD:
                         print(f"Preventing state bounce - staying in {fsm_state.__class__.__name__}")
                         skip_transition = True
+                
+                # IMPORTANT: Force lastUser reset when transitioning to/from AccessComplete
+                # This ensures PIN verification after grace period expiration
+                if (new_state.__class__.__name__ == "AccessComplete" or 
+                    fsm_state.__class__.__name__ == "AccessComplete"):
+                    service.lastUser = 0
+                    input_data["user_is_authorized"] = False  # Force re-verification
+                    print("Reset lastUser and auth status due to AccessComplete transition")
                 
                 if not skip_transition:
                     print(f"State transition occurred")

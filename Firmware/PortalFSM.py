@@ -256,13 +256,37 @@ class AccessComplete(State):
     the power to the machine
     """
     def __call__(self, input_data):
-        # The call should immediately transition to IdleNoCard after 
-        return self.next_state(IdleNoCard, input_data)
+        # Force reset of lastUser to ensure PIN verification
+        if hasattr(self.service, 'lastUser'):
+            self.service.lastUser = 0
+            print("Reset lastUser in AccessComplete to force PIN verification")
+            
+        # Check if a card is present
+        if input_data["card_id"] > 0:
+            # IMPORTANT: Clear the input_data's authorization status to force re-verification
+            # Create a copy with authorization reset
+            new_input = dict(input_data)
+            new_input["user_is_authorized"] = False  # Reset authorization
+            
+            # If card is still present, go to IdleUnknownCard so it will
+            # process the card from scratch (including PIN verification)
+            print("Card still present after access complete - going to IdleUnknownCard for fresh evaluation")
+            return self.next_state(IdleUnknownCard, new_input)
+        else:
+            # No card present, go to IdleNoCard as usual
+            return self.next_state(IdleNoCard, input_data)
 
     def on_enter(self, input_data):
         super().on_enter(input_data)
         self.service.box.stop_beeping()
         print("Usage complete, logging usage and turning off machine")
+        
+        # Make sure we reset lastUser immediately on entering AccessComplete
+        if hasattr(self.service, 'lastUser'):
+            self.service.lastUser = 0
+            print("Reset lastUser on AccessComplete entry")
+            
+        # Log completion and turn off equipment
         self.service.db.log_access_completion(FSM_STATE["auth_user_id"], self.service.equipment_id)
         self.service.box.set_equipment_power_on(False)
         
@@ -337,71 +361,38 @@ class RunningUnknownCard(State):
         coming_from_no_card = FSM_STATE["last_state_name"] == "RunningNoCard"
         print(f"Coming from RunningNoCard? {coming_from_no_card}")
         
-        # Proxy card during grace period
-        if (
-            input_data["card_type"] == CardType.PROXY_CARD and
-            FSM_STATE["training_id"] <= 0 and
-            coming_from_no_card
-        ):
-            # If the machine allows proxy cards then go into proxy mode
-            if FSM_STATE["allow_proxy"] == 1:
-                print(f"Allowing proxy card since allow_proxy={FSM_STATE['allow_proxy']}")
-                return self.next_state(RunningProxyCard, input_data)
-            # Otherwise go into a grace period 
-            else:
-                print(f"Not allowing proxy card since allow_proxy={FSM_STATE['allow_proxy']}")
-                return self.next_state(RunningUnauthCard, input_data)
-
-        # If it's the same user as before then just go back to auth user
-        elif input_data["card_id"] == FSM_STATE["auth_user_id"]:
+        # FIXED LOGIC: Only these specific cases should exit the grace period
+        
+        # Case 1: If it's the same user as before then just go back to auth user
+        if input_data["card_id"] == FSM_STATE["auth_user_id"]:
             print("Same authorized user card detected - returning to RunningAuthUser")
             return self.next_state(RunningAuthUser, input_data)
-
-        # Check for training mode conditions
-        # 1. Card is a USER_CARD
-        # 2. Coming from RunningNoCard (during grace period)
-        # 3. Original user had authority level >= 3
-        # 4. Not coming from proxy mode
-        # 5. Either not from training mode OR this is the same trainee
-        # 6. Current card is not authorized
+        
+        # Case 2: Check for training mode conditions - admin followed by unauthorized user
         if (
             input_data["card_type"] == CardType.USER_CARD and
             coming_from_no_card and 
-            FSM_STATE["user_authority_level"] >= 3 and
-            FSM_STATE["proxy_id"] <= 0 and
-            (FSM_STATE["training_id"] <= 0 or FSM_STATE["training_id"] == input_data["card_id"]) and
-            not input_data["user_is_authorized"]
+            FSM_STATE["user_authority_level"] >= 3 and  # Original user was admin/trainer
+            FSM_STATE["proxy_id"] <= 0 and  # Not coming from proxy mode
+            (FSM_STATE["training_id"] <= 0 or FSM_STATE["training_id"] == input_data["card_id"]) and  # Not already in training mode
+            not input_data["user_is_authorized"]  # Current card is not authorized
         ):
             print("All training mode criteria met! Entering RunningTrainingCard")
             return self.next_state(RunningTrainingCard, input_data)
         
-        # FIXED: If we're coming from RunningNoCard and this is a different user card,
-        # but it's authorized, go to RunningAuthUser instead of blocking or going to RunningUnauthCard
-        elif (coming_from_no_card and 
-            input_data["card_type"] == CardType.USER_CARD and 
-            input_data["user_is_authorized"]):
-            print("Different authorized user card during grace period, switching to new authorized user")
-            return self.next_state(RunningAuthUser, input_data)
+        # Case 3: Proxy card during grace period and machine allows proxy cards
+        if (
+            input_data["card_type"] == CardType.PROXY_CARD and
+            FSM_STATE["training_id"] <= 0 and
+            coming_from_no_card and
+            FSM_STATE["allow_proxy"] == 1  # Machine allows proxy cards
+        ):
+            print(f"Allowing proxy card since allow_proxy={FSM_STATE['allow_proxy']}")
+            return self.next_state(RunningProxyCard, input_data)
         
-        # Any other unauthorized card during grace period
-        elif (coming_from_no_card and 
-            input_data["card_type"] == CardType.USER_CARD and 
-            not input_data["user_is_authorized"] and
-            FSM_STATE["user_authority_level"] < 3):  # Not a trainer/admin
-            print("Unauthorized user card during grace period, not a trainer - going to RunningUnauthCard")
-            return self.next_state(RunningUnauthCard, input_data)
-            
-        # Check if time expired
-        elif self.grace_expired():
-            print("Exiting Grace period because the grace period expired")
-            return self.next_state(AccessComplete, input_data)
-            
-        # Check if button pressed
-        elif input_data["button_pressed"]:
-            print("Exiting Grace period because button was pressed")
-            return self.next_state(AccessComplete, input_data)
-            
-        return None
+        # For all other cases, go back to RunningNoCard to continue the grace period
+        print("Card detected but doesn't meet criteria to exit grace period - continuing grace period")
+        return self.next_state(RunningNoCard, input_data)
 
     def on_enter(self, input_data):
         super().on_enter(input_data)
@@ -473,22 +464,7 @@ class RunningNoCard(State):
     """
     
     def __call__(self, input_data):
-        # Card detected
-        if input_data["card_id"] > 0 and input_data["card_type"] != CardType.INVALID_CARD:
-            # Check if this is an unauthorized user card - if so, stay in RunningNoCard
-            if (input_data["card_type"] == CardType.USER_CARD and 
-                not input_data["user_is_authorized"] and
-                FSM_STATE["user_authority_level"] < 3):  # Not a trainer/admin
-                
-                print(f"Unauthorized user card detected during grace period - staying in RunningNoCard")
-                # Don't transition to RunningUnknownCard - stay in current state
-                return None
-                
-            # For all other cases, proceed to RunningUnknownCard
-            print(f"Card detected in grace period, authority level: {FSM_STATE['user_authority_level']}")
-            return self.next_state(RunningUnknownCard, input_data)
-
-        # Rest of the function remains the same
+        # Most critical fix: ALWAYS check grace period expiration first
         if self.grace_expired():
             print("Exiting Grace period because the grace period expired")
             return self.next_state(AccessComplete, input_data)
@@ -496,6 +472,60 @@ class RunningNoCard(State):
         if input_data["button_pressed"]:
             print("Exiting Grace period because button was pressed")
             return self.next_state(AccessComplete, input_data)
+        
+        # Card detected - only handle specific cases that should exit grace period
+        if input_data["card_id"] > 0 and input_data["card_type"] != CardType.INVALID_CARD:
+            # Case 1: Same user reinserted card
+            if input_data["card_id"] == FSM_STATE["auth_user_id"]:
+                print("Same authorized user card detected - returning to RunningAuthUser")
+                return self.next_state(RunningAuthUser, input_data)
+            
+            # Case 2: Training mode conditions - admin followed by unauthorized user
+            if (input_data["card_type"] == CardType.USER_CARD and 
+                FSM_STATE["user_authority_level"] >= 3 and  # Original user was admin/trainer
+                FSM_STATE["proxy_id"] <= 0 and  # Not coming from proxy mode
+                (FSM_STATE["training_id"] <= 0 or FSM_STATE["training_id"] == input_data["card_id"]) and
+                not input_data["user_is_authorized"]):  # Current card is not authorized
+                print("All training mode criteria met! Entering RunningTrainingCard")
+                return self.next_state(RunningTrainingCard, input_data)
+            
+            # Case 3: Proxy card when machine allows proxy
+            if (input_data["card_type"] == CardType.PROXY_CARD and
+                FSM_STATE["training_id"] <= 0 and
+                FSM_STATE["allow_proxy"] == 1):  # Machine allows proxy cards
+                print(f"Allowing proxy card since allow_proxy={FSM_STATE['allow_proxy']}")
+                return self.next_state(RunningProxyCard, input_data)
+            
+            # For all other cases, display a message briefly but STAY in RunningNoCard
+            # This prevents state bouncing while ensuring the grace timer continues
+            print("Card detected but doesn't meet criteria - continuing grace period")
+            # Update the display but don't change state - limit how often we show the message
+            if hasattr(self.service, 'display') and not hasattr(self, 'last_message_time'):
+                self.service.display.display_two_line_message(
+                    "Card Not Accepted", 
+                    "Grace Continuing", 
+                    "unauth_color"
+                )
+                self.last_message_time = datetime.now()
+                time.sleep(1)  # Show message briefly
+                # Return to grace period display
+                # Calculate remaining time properly
+                elapsed = datetime.now() - self.grace_start
+                remaining = max(0, self.grace_delta.total_seconds() - elapsed)
+                self.service.display.start_grace_timer(remaining)
+            elif hasattr(self, 'last_message_time') and (datetime.now() - self.last_message_time) > 5:
+                # Only show the message again after 5 seconds
+                self.service.display.display_two_line_message(
+                    "Card Not Accepted", 
+                    "Grace Continuing", 
+                    "unauth_color"
+                )
+                self.last_message_time = datetime.now()
+                time.sleep(1)  # Show message briefly
+                # Return to grace period display
+                elapsed = datetime.now() - self.grace_start
+                remaining = max(0, self.grace_delta.total_seconds() - elapsed)
+                self.service.display.start_grace_timer(remaining)
             
         return None
 
@@ -503,17 +533,21 @@ class RunningNoCard(State):
         super().on_enter(input_data)
         print(f"Grace period started - card removed. Auth user: {FSM_STATE['auth_user_id']}, Authority: {FSM_STATE['user_authority_level']}")
         self.grace_start = datetime.now()
+        # Reset any message tracking
+        if hasattr(self, 'last_message_time'):
+            delattr(self, 'last_message_time')
         
         # Start grace timer on display controller if available
         if hasattr(self.service, 'display'):
-            self.service.display.start_grace_timer(self.grace_delta.seconds)
+            self.service.display.start_grace_timer(self.grace_delta.total_seconds())
             self.service.display.display_two_line_message("Grace Period", "Insert Card", "process_color")
         
         self.service.box.start_beeping(
             freq=500,
-            duration=self.grace_delta.seconds,
+            duration=self.grace_delta.total_seconds(),
             beeps=self.flash_rate,
         )
+
 
 class RunningUnauthCard(State):
     """

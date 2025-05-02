@@ -57,7 +57,7 @@
         "toggles": {
             "enable_buzzer": false,
             "buzzer_pwm": false,
-            "enable_keypad": true,
+            "enable_keypad": false,
             "enable_LCDScreen": true
         }
   }
